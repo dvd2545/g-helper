@@ -178,13 +178,28 @@ public sealed class TrayIconController : IDisposable
         graphics.SmoothingMode = SmoothingMode.AntiAlias;
         graphics.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
 
-        float fontSize = value.Text.Length switch { <= 2 => 23f, 3 => 18f, 4 => 14.5f, _ => 12f };
         using var path = new GraphicsPath();
-        using var format = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
-        path.AddString(value.Text, FontFamily.GenericSansSerif, (int)FontStyle.Bold, fontSize,
-            new RectangleF(0, 0, 32, 32), format);
+        using var format = (StringFormat)StringFormat.GenericTypographic.Clone();
+        path.AddString(value.Text, FontFamily.GenericSansSerif, (int)FontStyle.Bold, 28f,
+            PointF.Empty, format);
 
-        using var outline = new Pen(Color.FromArgb(235, 0, 0, 0), 3.2f) { LineJoin = LineJoin.Round };
+        // Fit the complete glyph path instead of choosing a font size from the
+        // character count. This keeps wide values such as "100" and signed
+        // power readings inside the small notification-area icon canvas.
+        RectangleF bounds = path.GetBounds();
+        const float availableSize = 27f;
+        float scale = Math.Min(availableSize / bounds.Width, availableSize / bounds.Height);
+        float width = bounds.Width * scale;
+        float height = bounds.Height * scale;
+        using (var transform = new System.Drawing.Drawing2D.Matrix(
+                   scale, 0, 0, scale,
+                   (32f - width) / 2f - bounds.X * scale,
+                   (32f - height) / 2f - bounds.Y * scale))
+        {
+            path.Transform(transform);
+        }
+
+        using var outline = new Pen(Color.FromArgb(235, 0, 0, 0), 2.4f) { LineJoin = LineJoin.Round };
         using var fill = new SolidBrush(value.Color);
         graphics.DrawPath(outline, path);
         graphics.FillPath(fill, path);
