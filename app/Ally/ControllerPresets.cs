@@ -69,14 +69,19 @@ public sealed class ControllerPresetConfig
 }
 
 public readonly record struct ControllerPresetSummary(string Id, string Name, bool IsDefault);
-public readonly record struct ProcessChoice(string Path, string Name)
+public readonly record struct ProcessChoice(string Path, string Name, bool HasVisibleWindow = false, bool IsForeground = false)
 {
-    public override string ToString() => string.IsNullOrWhiteSpace(Path) ? Name : $"{Name} — {Path}";
+    public override string ToString()
+    {
+        string label = string.IsNullOrWhiteSpace(Path) ? Name : $"{Name} — {Path}";
+        return IsForeground ? $"● {label}" : label;
+    }
 }
 
 public static class ControllerPresetManager
 {
     private const string ConfigKey = "controller_presets";
+    private const uint GwHwndNext = 2;
     private static readonly string[] ButtonIds =
     [
         "m1", "m2", "a", "b", "x", "y", "du", "dd", "dl", "dr",
@@ -101,6 +106,12 @@ public static class ControllerPresetManager
 
     [DllImport("user32.dll")]
     private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+
+    [DllImport("user32.dll")]
+    private static extern bool IsWindowVisible(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetWindow(IntPtr hWnd, uint command);
 
     public static void Start()
     {
@@ -452,7 +463,27 @@ public static class ControllerPresetManager
 
     public static IReadOnlyList<ProcessChoice> RunningProcesses()
     {
-        return ReadRunningProcesses(null).OrderBy(p => p.Name).ThenBy(p => p.Path).ToArray();
+        uint foregroundPid = GetMostRecentExternalWindowProcessId();
+        return SortRunningProcesses(ReadRunningProcesses(null, true, foregroundPid));
+    }
+
+    internal static IReadOnlyList<ProcessChoice> SortRunningProcesses(IEnumerable<ProcessChoice> choices) => choices
+        .OrderByDescending(p => p.IsForeground)
+        .ThenByDescending(p => p.HasVisibleWindow)
+        .ThenBy(p => p.Name, StringComparer.OrdinalIgnoreCase)
+        .ThenBy(p => p.Path, StringComparer.OrdinalIgnoreCase)
+        .ToArray();
+
+    private static uint GetMostRecentExternalWindowProcessId()
+    {
+        IntPtr window = GetForegroundWindow();
+        for (int inspected = 0; window != IntPtr.Zero && inspected < 256; inspected++)
+        {
+            GetWindowThreadProcessId(window, out uint processId);
+            if (processId != 0 && processId != Environment.ProcessId && IsWindowVisible(window)) return processId;
+            window = GetWindow(window, GwHwndNext);
+        }
+        return 0;
     }
 
     internal static IReadOnlyList<InputCombination> EffectiveCombinations()
@@ -661,7 +692,7 @@ public static class ControllerPresetManager
         return string.Equals(Path.GetFileNameWithoutExtension(rule.ExecutableName), Path.GetFileNameWithoutExtension(process.Name), StringComparison.OrdinalIgnoreCase);
     }
 
-    private static List<ProcessChoice> ReadRunningProcesses(HashSet<string>? names)
+    private static List<ProcessChoice> ReadRunningProcesses(HashSet<string>? names, bool inspectWindows = false, uint foregroundPid = 0)
     {
         var result = new List<ProcessChoice>();
         foreach (Process process in Process.GetProcesses())
@@ -674,7 +705,18 @@ public static class ControllerPresetManager
                     if (names is not null && !names.Contains(name)) continue;
                     string path = "";
                     try { path = process.MainModule?.FileName ?? ""; } catch { }
-                    result.Add(new(path, name));
+                    bool isForeground = inspectWindows && process.Id == foregroundPid;
+                    bool hasVisibleWindow = isForeground;
+                    if (inspectWindows && !hasVisibleWindow)
+                    {
+                        try
+                        {
+                            IntPtr window = process.MainWindowHandle;
+                            hasVisibleWindow = window != IntPtr.Zero && IsWindowVisible(window);
+                        }
+                        catch { }
+                    }
+                    result.Add(new(path, name, hasVisibleWindow, isForeground));
                 }
                 catch { }
             }

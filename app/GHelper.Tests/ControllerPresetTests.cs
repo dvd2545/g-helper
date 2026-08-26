@@ -6,6 +6,21 @@ namespace GHelper.Tests;
 public class ControllerPresetTests
 {
     [Fact]
+    public void RunningProcessPickerSortsForegroundThenWindowedApps()
+    {
+        ProcessChoice[] sorted = ControllerPresetManager.SortRunningProcesses(
+        [
+            new(@"C:\Background\zeta.exe", "zeta"),
+            new(@"C:\Apps\beta.exe", "beta", HasVisibleWindow: true),
+            new(@"C:\Apps\alpha.exe", "alpha", HasVisibleWindow: true),
+            new(@"C:\Apps\active.exe", "active", HasVisibleWindow: true, IsForeground: true)
+        ]).ToArray();
+
+        Assert.Equal(["active", "alpha", "beta", "zeta"], sorted.Select(p => p.Name));
+        Assert.StartsWith("● ", sorted[0].ToString());
+    }
+
+    [Fact]
     public void ForegroundRuleWinsOverEarlierRunningRule()
     {
         var config = Config(
