@@ -2,6 +2,15 @@
 
 Small and lightweight Armoury Crate alternative for Asus laptops offering almost same functionality with a much smaller footprint. Works with all popular models, such as ROG Zephyrus G14, G15, G16, M16, X13, X16, Z13, DUO, TUF Series, Strix or Scar Series, ProArt, Vivobook, Zenbook, Expertbook, ROG Ally or Ally X and many more!
 
+> [!IMPORTANT]
+> ## About this personal fork
+>
+> This is a personal, unofficial fork of [Seerge's original G-Helper project](https://github.com/seerge/g-helper), adjusted to fit my own preferences. I wanted handheld controller key presets, executable-based automatic preset switching, reusable key combinations, and live tray metrics while continuing to avoid the overhead and unwanted components of ASUS Armoury Crate.
+>
+> Full credit for G-Helper, its core design, hardware support, and the vast majority of this codebase belongs to [Seerge](https://github.com/seerge) and the [original G-Helper contributors](https://github.com/seerge/g-helper/graphs/contributors). Please support and star the upstream project.
+>
+> The fork-specific additions are an experimental **vibe-coded personal project**. They may contain bugs, have not received the same review or hardware testing as upstream G-Helper, and are provided without any guarantee of stability or support. This fork is not an official G-Helper release and is not affiliated with or endorsed by Seerge or ASUS. Please do not ask the original maintainer to support problems caused by these modifications.
+
 [![GitHub release](https://g-helper.com/badge/release.svg)](https://GitHub.com/seerge/g-helper/releases/)
 [![Downloads](https://g-helper.com/badge/downloads.svg)](https://GitHub.com/seerge/g-helper/releases/)
 [![SLSA3](https://g-helper.com/badge/slsa.svg)](https://github.com/seerge/g-helper/attestations)
@@ -66,12 +75,15 @@ Small and lightweight Armoury Crate alternative for Asus laptops offering almost
 14. Asus Mice controls
 15. Mini-led multi-zone switch
 16. Flicker-free dimming and Visual Modes
+17. ROG Ally controller presets with automatic executable-based switching and custom key combinations
+18. Live system-tray icons for CPU/GPU temperature, battery power, or battery charge
 
 ### :gear: Automation
 - Performance Mode switching when on battery or plugged in
 - Optimized GPU mode - disables dGPU on battery and enables when plugged in
 - Auto Screen refresh rate (60Hz on battery and max Hz when plugged)
 - Keyboard backlight timeout on battery or when plugged in
+- ROG Ally controller preset switching by foreground application or running process
 
 ### :rocket: Performance Modes
 >[!NOTE]
@@ -114,6 +126,18 @@ A built-in in-game overlay (OSD) that shows live **FPS, CPU / GPU temperatures, 
 
 <img width="1690" alt="Metrics Overlay" src="https://github.com/user-attachments/assets/0752a704-e9a7-4e27-8587-39967f625fae" />
 <img width="3840" alt="Metrics Overlay in a game" src="https://github.com/user-attachments/assets/8b063f80-d508-41e0-9978-154bc936d451" />
+
+### 📊 System Tray Metrics
+
+The notification-area icon can show a live value instead of the standard GPU-mode icon. Right-click the G-Helper icon and open **Tray Icon** to select:
+
+- **Default GPU-mode icon**
+- **CPU Temperature**
+- **GPU Temperature**
+- **Battery Power** - signed watts (`+` while charging and `-` while discharging)
+- **Battery Charge** - current percentage from 0 to 100
+
+Live values refresh every two seconds and use outlined, color-coded text for readability. The icon displays `--` when the selected sensor is unavailable, while the tooltip keeps the existing detailed CPU, GPU, and battery information. The black/white icon preference applies only to the default icon mode.
 
 ### :mouse: Asus Mouse and other peripherals support
 
@@ -217,7 +241,19 @@ Huge thanks to [@IceStormNG](https://github.com/IceStormNG) 👑 for contributio
 - ``Ctrl + Shift + Alt + F20`` - Custom 2 (if exists)
 - [Custom keybindings / hotkeys](https://github.com/seerge/g-helper/wiki/Power-user-settings#custom-hotkey-actions)
 
-### 🎮ROG Ally Bindings
+### 🎮 ROG Ally Controller Presets and Bindings
+
+The Handheld window supports named controller presets for ROG Ally and compatible handheld controls. The protected **Default** preset starts with the existing controller bindings. Each additional preset can store its own primary and secondary button assignments and Turbo values; controller mode, deadzones, vibration, and controller enabled/disabled state remain global.
+
+- Use **New**, **Duplicate**, **Rename**, and **Delete** to organize presets. Duplicating a preset copies its bindings but not its executable rules.
+- Use **Apps** to associate a preset with an executable selected from disk or from the running-process picker. The most recently active app is marked with `●`, visible applications are listed before background processes, and each rule can use **Foreground** or **Running** detection.
+- **Auto switch** prioritizes foreground rules, then running-process rules, in preset and rule order. It returns to Default when nothing matches and ignores G-Helper's own windows.
+- Selecting a preset manually disables Auto switch. Re-enabling it evaluates the executable rules immediately. Preset-change notifications can be enabled or disabled with **Switch notice**.
+- Use **Combinations** to create reusable keyboard and mouse combinations, then select them from either binding layer. A combination can hold any number of unique keyboard keys and click one Left, Right, Middle, X1, or X2 mouse button once per controller press.
+- Combinations are simultaneous inputs, not timed macros: they do not record delays, sequences, repetition, mouse movement, or wheel input. Deleting a referenced combination changes affected assignments to Disabled after confirmation.
+
+Default ROG Ally bindings include:
+
 - ``M + DPad Left / Right`` - Display Brightness
 - ``M + DPad Up`` - Touch keyboard
 - ``M + DPad Down`` - Show desktop
