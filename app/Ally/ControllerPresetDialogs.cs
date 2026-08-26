@@ -444,9 +444,30 @@ internal sealed class PresetRulesDialog : Form
 
     private void AddFile()
     {
-        using var dialog = new OpenFileDialog { Filter = "Applications (*.exe)|*.exe", CheckFileExists = true };
-        if (dialog.ShowDialog(this) != DialogResult.OK) return;
-        AddRule(new(dialog.FileName, Path.GetFileNameWithoutExtension(dialog.FileName)));
+        try
+        {
+            using var dialog = new OpenFileDialog
+            {
+                Filter = "Applications (*.exe)|*.exe",
+                CheckFileExists = true,
+                CheckPathExists = true,
+                DereferenceLinks = true,
+                RestoreDirectory = true
+            };
+            if (dialog.ShowDialog(this) != DialogResult.OK) return;
+
+            string path = Path.GetFullPath(dialog.FileName);
+            string name = Path.GetFileNameWithoutExtension(path);
+            if (name.Length == 0) return;
+            AddRule(new(path, name));
+        }
+        catch (Exception ex)
+        {
+            Logger.WriteLine("Executable picker: " + ex);
+            MessageBox.Show(this,
+                DialogText.Get("ExecutablePickerError", "The selected executable could not be added."),
+                Text, MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
     }
 
     private void AddRunning()
