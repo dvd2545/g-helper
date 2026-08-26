@@ -1025,4 +1025,42 @@ from heating up the sleeping laptop and draining the battery.</value>
   <data name="Always" xml:space="preserve">
     <value>Always</value>
   </data>
+  <data name="TrayIcon" xml:space="preserve"><value>Tray Icon</value></data>
+  <data name="TrayIconDefault" xml:space="preserve"><value>Default GPU Icon</value></data>
+  <data name="TrayIconCpuTemperature" xml:space="preserve"><value>CPU Temperature</value></data>
+  <data name="TrayIconGpuTemperature" xml:space="preserve"><value>GPU Temperature</value></data>
+  <data name="TrayIconBatteryPower" xml:space="preserve"><value>Battery Power</value></data>
+  <data name="TrayIconBatteryCharge" xml:space="preserve"><value>Battery Charge</value></data>
+  <data name="ControllerPreset" xml:space="preserve"><value>Preset</value></data>
+  <data name="NewPreset" xml:space="preserve"><value>New Preset</value></data>
+  <data name="AutoSwitch" xml:space="preserve"><value>Auto switch</value></data>
+  <data name="PresetToast" xml:space="preserve"><value>Switch notice</value></data>
+  <data name="Apps" xml:space="preserve"><value>Apps</value></data>
+  <data name="Combinations" xml:space="preserve"><value>Combinations</value></data>
+  <data name="CustomCombination" xml:space="preserve"><value>Custom Combination</value></data>
+  <data name="CustomCombinations" xml:space="preserve"><value>Custom Combinations</value></data>
+  <data name="ExecutableRules" xml:space="preserve"><value>Executable Rules</value></data>
+  <data name="Executable" xml:space="preserve"><value>Executable</value></data>
+  <data name="Detection" xml:space="preserve"><value>Detection</value></data>
+  <data name="BrowseExe" xml:space="preserve"><value>Browse EXE</value></data>
+  <data name="RunningProcess" xml:space="preserve"><value>Running Process</value></data>
+  <data name="Record" xml:space="preserve"><value>Record</value></data>
+  <data name="Recording" xml:space="preserve"><value>Recording…</value></data>
+  <data name="PressCombination" xml:space="preserve"><value>Press and release the key/mouse combination</value></data>
+  <data name="CombinationEmpty" xml:space="preserve"><value>Record at least one key or mouse button.</value></data>
+  <data name="DeletePresetConfirm" xml:space="preserve"><value>Delete this preset?</value></data>
+  <data name="DeleteCombinationConfirm" xml:space="preserve"><value>Delete this combination? Referenced buttons will be disabled.</value></data>
+  <data name="OK" xml:space="preserve"><value>OK</value></data>
+  <data name="Cancel" xml:space="preserve"><value>Cancel</value></data>
+  <data name="Save" xml:space="preserve"><value>Save</value></data>
+  <data name="Close" xml:space="preserve"><value>Close</value></data>
+  <data name="Add" xml:space="preserve"><value>Add</value></data>
+  <data name="Edit" xml:space="preserve"><value>Edit</value></data>
+  <data name="Rename" xml:space="preserve"><value>Rename</value></data>
+  <data name="Delete" xml:space="preserve"><value>Delete</value></data>
+  <data name="Name" xml:space="preserve"><value>Name</value></data>
+  <data name="New" xml:space="preserve"><value>New</value></data>
+  <data name="Duplicate" xml:space="preserve"><value>Duplicate</value></data>
+  <data name="Test" xml:space="preserve"><value>Test</value></data>
+  <data name="Clear" xml:space="preserve"><value>Clear</value></data>
 </root>

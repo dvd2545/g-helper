@@ -54,6 +54,8 @@ namespace GHelper.Ally
         static bool autoTDP = false;
 
         static int fpsLimit = -1;
+        static readonly SemaphoreSlim applySemaphore = new(1, 1);
+        static int applyRevision;
 
 
         public const string BindA = "01-01";
@@ -532,62 +534,64 @@ namespace GHelper.Ally
             string KeyL2, KeyR2;
 
             bool desktop = (_applyMode == ControllerMode.Mouse);
+            static string B(string name, bool secondary, string fallback = "") =>
+                ControllerPresetManager.ResolveBinding(name, secondary, fallback);
 
             switch (zone)
             {
                 case BindingZone.DPadUpDown:
-                    KeyL1 = AppConfig.GetString("bind_du", desktop ? BindKBU : BindDU);
-                    KeyR1 = AppConfig.GetString("bind_dd", desktop ? BindKBD : BindDD);
-                    KeyL2 = AppConfig.GetString("bind2_du", BindShowKeyboard);
-                    KeyR2 = AppConfig.GetString("bind2_dd", BindShowDesktop);
+                    KeyL1 = B("du", false, desktop ? BindKBU : BindDU);
+                    KeyR1 = B("dd", false, desktop ? BindKBD : BindDD);
+                    KeyL2 = B("du", true, BindShowKeyboard);
+                    KeyR2 = B("dd", true, BindShowDesktop);
                     break;
                 case BindingZone.DPadLeftRight:
-                    KeyL1 = AppConfig.GetString("bind_dl", desktop ? BindKBL : BindDL);
-                    KeyR1 = AppConfig.GetString("bind_dr", desktop ? BindKBR : BindDR);
-                    KeyL2 = AppConfig.GetString("bind2_dl", BindBrightnessDown);
-                    KeyR2 = AppConfig.GetString("bind2_dr", BindBrightnessUp);
+                    KeyL1 = B("dl", false, desktop ? BindKBL : BindDL);
+                    KeyR1 = B("dr", false, desktop ? BindKBR : BindDR);
+                    KeyL2 = B("dl", true, BindBrightnessDown);
+                    KeyR2 = B("dr", true, BindBrightnessUp);
                     break;
                 case BindingZone.StickClick:
-                    KeyL1 = AppConfig.GetString("bind_ls", desktop ? BindShift : BindLS);
-                    KeyR1 = AppConfig.GetString("bind_rs", desktop ? BindMouseL : BindRS);
-                    KeyL2 = AppConfig.GetString("bind2_ls");
-                    KeyR2 = AppConfig.GetString("bind2_rs", BindToggleMode);
+                    KeyL1 = B("ls", false, desktop ? BindShift : BindLS);
+                    KeyR1 = B("rs", false, desktop ? BindMouseL : BindRS);
+                    KeyL2 = B("ls", true);
+                    KeyR2 = B("rs", true, BindToggleMode);
                     break;
                 case BindingZone.Bumper:
-                    KeyL1 = AppConfig.GetString("bind_lb", desktop ? BindTab : BindLB);
-                    KeyR1 = AppConfig.GetString("bind_rb", desktop ? BindMouseL : BindRB);
-                    KeyL2 = AppConfig.GetString("bind2_lb");
-                    KeyR2 = AppConfig.GetString("bind2_rb");
+                    KeyL1 = B("lb", false, desktop ? BindTab : BindLB);
+                    KeyR1 = B("rb", false, desktop ? BindMouseL : BindRB);
+                    KeyL2 = B("lb", true);
+                    KeyR2 = B("rb", true);
                     break;
                 case BindingZone.AB:
-                    KeyL1 = AppConfig.GetString("bind_a", desktop ? BindEnter : BindA);
-                    KeyR1 = AppConfig.GetString("bind_b", desktop ? BindEsc : BindB);
-                    KeyL2 = AppConfig.GetString("bind2_a");
-                    KeyR2 = AppConfig.GetString("bind2_b");
+                    KeyL1 = B("a", false, desktop ? BindEnter : BindA);
+                    KeyR1 = B("b", false, desktop ? BindEsc : BindB);
+                    KeyL2 = B("a", true);
+                    KeyR2 = B("b", true);
                     break;
                 case BindingZone.XY:
-                    KeyL1 = AppConfig.GetString("bind_x", desktop ? BindPgD : BindX);
-                    KeyR1 = AppConfig.GetString("bind_y", desktop ? BindPgU : BindY);
-                    KeyL2 = AppConfig.GetString("bind2_x", BindScreenshot);
-                    KeyR2 = AppConfig.GetString("bind2_y", BindOverlay);
+                    KeyL1 = B("x", false, desktop ? BindPgD : BindX);
+                    KeyR1 = B("y", false, desktop ? BindPgU : BindY);
+                    KeyL2 = B("x", true, BindScreenshot);
+                    KeyR2 = B("y", true, BindOverlay);
                     break;
                 case BindingZone.ViewMenu:
-                    KeyL1 = AppConfig.GetString("bind_vb", BindVB);
-                    KeyR1 = AppConfig.GetString("bind_mb", BindMB);
-                    KeyL2 = AppConfig.GetString("bind2_vb");
-                    KeyR2 = AppConfig.GetString("bind2_mb");
+                    KeyL1 = B("vb", false, BindVB);
+                    KeyR1 = B("mb", false, BindMB);
+                    KeyL2 = B("vb", true);
+                    KeyR2 = B("mb", true);
                     break;
                 case BindingZone.M1M2:
-                    KeyL1 = AppConfig.GetString("bind_m2", BindM2);
-                    KeyR1 = AppConfig.GetString("bind_m1", BindM1);
-                    KeyL2 = AppConfig.GetString("bind2_m2", BindM2);
-                    KeyR2 = AppConfig.GetString("bind2_m1", BindM1);
+                    KeyL1 = B("m2", false, BindM2);
+                    KeyR1 = B("m1", false, BindM1);
+                    KeyL2 = B("m2", true, BindM2);
+                    KeyR2 = B("m1", true, BindM1);
                     break;
                 default:
-                    KeyL1 = AppConfig.GetString("bind_lt", desktop ? BindShiftTab : BindLT);
-                    KeyR1 = AppConfig.GetString("bind_rt", desktop ? BindMouseR : BindRT);
-                    KeyL2 = AppConfig.GetString("bind2_lt");
-                    KeyR2 = AppConfig.GetString("bind2_rt");
+                    KeyL1 = B("lt", false, desktop ? BindShiftTab : BindLT);
+                    KeyR1 = B("rt", false, desktop ? BindMouseR : BindRT);
+                    KeyL2 = B("lt", true);
+                    KeyR2 = B("rt", true);
                     break;
             }
 
@@ -622,10 +626,10 @@ namespace GHelper.Ally
             void Z(int zone, string l1, string l2, string r1, string r2)
             {
                 int o = 4 + (zone - 1) * 4;
-                turbo[o] = (byte)(AppConfig.Get(l1, 0) / 50);
-                turbo[o + 1] = (byte)(AppConfig.Get(l2, 0) / 50);
-                turbo[o + 2] = (byte)(AppConfig.Get(r1, 0) / 50);
-                turbo[o + 3] = (byte)(AppConfig.Get(r2, 0) / 50);
+                turbo[o] = (byte)(ControllerPresetManager.GetTurbo(l1[6..], false) / 50);
+                turbo[o + 1] = (byte)(ControllerPresetManager.GetTurbo(l2[7..], true) / 50);
+                turbo[o + 2] = (byte)(ControllerPresetManager.GetTurbo(r1[6..], false) / 50);
+                turbo[o + 3] = (byte)(ControllerPresetManager.GetTurbo(r2[7..], true) / 50);
             }
 
             Z(1, "turbo_du", "turbo2_du", "turbo_dd", "turbo2_dd");
@@ -676,58 +680,68 @@ namespace GHelper.Ally
 
         public static void ApplyMode(ControllerMode applyMode = ControllerMode.Auto, bool init = false)
         {
-            Task.Run(() =>
+            int revision = Interlocked.Increment(ref applyRevision);
+            Task.Run(async () =>
             {
-
-                if (applyMode == ControllerMode.Skip) return;
-
-                HidStream? input = AsusHid.FindHidStream(AsusHid.INPUT_ID);
-                int count = 0;
-
-                while (input == null && count++ < 10)
+                await applySemaphore.WaitAsync();
+                try
                 {
-                    input = AsusHid.FindHidStream(AsusHid.INPUT_ID);
-                    Thread.Sleep(500);
-                }
 
-                if (input == null)
+                    if (applyMode == ControllerMode.Skip) return;
+                    if (!init && revision != Volatile.Read(ref applyRevision)) return;
+
+                    HidStream? input = AsusHid.FindHidStream(AsusHid.INPUT_ID);
+                    int count = 0;
+
+                    while (input == null && count++ < 10)
+                    {
+                        input = AsusHid.FindHidStream(AsusHid.INPUT_ID);
+                        Thread.Sleep(500);
+                    }
+
+                    if (input == null)
+                    {
+                        Logger.WriteLine($"Controller not found");
+                        return;
+                    }
+
+                    input.Dispose();
+                    if (!init && revision != Volatile.Read(ref applyRevision)) return;
+
+                    if (applyMode != ControllerMode.Auto) _applyMode = applyMode;
+
+                    if (init)
+                    {
+                        WakeUp();
+                        DisableXBoxController(false);
+                        InputDispatcher.SetBacklightAuto();
+                    }
+
+                    AsusHid.WriteInput([AsusHid.INPUT_ID, 0xD1, 0x01, 0x01, (byte)_applyMode], "Controller");
+
+                    BindZone(BindingZone.M1M2);
+                    BindZone(BindingZone.DPadUpDown);
+                    BindZone(BindingZone.DPadLeftRight);
+                    BindZone(BindingZone.StickClick);
+                    BindZone(BindingZone.Bumper);
+                    BindZone(BindingZone.AB);
+                    BindZone(BindingZone.XY);
+                    BindZone(BindingZone.ViewMenu);
+                    BindZone(BindingZone.Trigger);
+
+                    SetTurbo();
+                    SetDeadzones();
+
+                    if (init && AppConfig.Is("controller_disabled"))
+                    {
+                        Thread.Sleep(500);
+                        DisableXBoxController(true);
+                    }
+                }
+                finally
                 {
-                    Logger.WriteLine($"Controller not found");
-                    return;
+                    applySemaphore.Release();
                 }
-
-                input.Dispose();
-
-                if (applyMode != ControllerMode.Auto) _applyMode = applyMode;
-
-                if (init)
-                {
-                    WakeUp();
-                    DisableXBoxController(false);
-                    InputDispatcher.SetBacklightAuto();
-                }
-
-                AsusHid.WriteInput([AsusHid.INPUT_ID, 0xD1, 0x01, 0x01, (byte)_applyMode], "Controller");
-
-                BindZone(BindingZone.M1M2);
-                BindZone(BindingZone.DPadUpDown);
-                BindZone(BindingZone.DPadLeftRight);
-                BindZone(BindingZone.StickClick);
-                BindZone(BindingZone.Bumper);
-                BindZone(BindingZone.AB);
-                BindZone(BindingZone.XY);
-                BindZone(BindingZone.ViewMenu);
-                BindZone(BindingZone.Trigger);
-
-                SetTurbo();
-                SetDeadzones();
-
-                if (init && AppConfig.Is("controller_disabled"))
-                {
-                    Thread.Sleep(500);
-                    DisableXBoxController(true);
-                }
-
             });
         }
 

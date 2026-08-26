@@ -7,6 +7,7 @@ using GHelper.Input;
 using GHelper.Mode;
 using GHelper.Overlay;
 using GHelper.Peripherals;
+using GHelper.UI;
 using GHelper.USB;
 using Microsoft.Win32;
 using System.Diagnostics;
@@ -21,6 +22,7 @@ namespace GHelper
     static class Program
     {
         public static NotifyIcon trayIcon;
+        public static TrayIconController trayIconController;
         public static AsusACPI acpi;
 
         public static SettingsForm settingsForm;
@@ -124,6 +126,7 @@ namespace GHelper
                 Icon = Properties.Resources.standard,
                 Visible = true
             };
+            trayIconController = new TrayIconController(trayIcon, settingsForm);
 
             var trayRetry = new System.Windows.Forms.Timer { Interval = 5000 };
             trayRetry.Tick += (_, _) => { trayRetry.Dispose(); trayIcon.Visible = false; trayIcon.Visible = true; };
@@ -478,7 +481,10 @@ namespace GHelper
                 trayIcon.Visible = false;
                 trayIcon.Dispose();
             }
+            trayIconController?.Dispose();
 
+            ControllerPresetManager.Stop();
+            CombinationCarrierManager.Stop();
             PeripheralsProvider.UnregisterForDeviceEvents();
             clamshellControl.UnregisterDisplayEvents();
             NativeMethods.UnregisterPowerSettingNotification(unRegPowerNotify);

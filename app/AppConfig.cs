@@ -223,6 +223,28 @@ public static class AppConfig
             return config.TryGetValue(name, out var val) ? val?.ToString() : empty;
     }
 
+    public static T? GetObject<T>(string name)
+    {
+        lock (configLock)
+        {
+            if (!config.TryGetValue(name, out var value) || value is null) return default;
+
+            try
+            {
+                if (value is JsonElement element)
+                    return element.Deserialize<T>(LenientOptions);
+
+                if (value is T typed) return typed;
+                return JsonSerializer.Deserialize<T>(JsonSerializer.Serialize(value), LenientOptions);
+            }
+            catch (Exception ex)
+            {
+                Logger.WriteLine($"Config object '{name}' could not be read: {ex.Message}");
+                return default;
+            }
+        }
+    }
+
     private static void Write()
     {
         timer.Stop();
@@ -238,6 +260,13 @@ public static class AppConfig
     public static void Set(string name, string value)
     {
         lock (configLock) config[name] = value;
+        Write();
+    }
+
+    public static void SetObject<T>(string name, T value)
+    {
+        JsonElement snapshot = JsonSerializer.SerializeToElement(value);
+        lock (configLock) config[name] = snapshot;
         Write();
     }
 

@@ -1,3 +1,4 @@
+using GHelper.Ally;
 using GHelper.Display;
 using GHelper.Helpers;
 using GHelper.Mode;
@@ -58,6 +59,12 @@ namespace GHelper.Input
 
             MKeyControl.ApplyAll();
             RegisterKeys();
+
+            if (AppConfig.IsAlly())
+            {
+                CombinationCarrierManager.Initialize();
+                ControllerPresetManager.Start();
+            }
 
             timer.Elapsed += Timer_Elapsed;
 

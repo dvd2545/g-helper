@@ -888,16 +888,47 @@ namespace GHelper
                 contextMenuStrip.Items.Add("-");
             }
 
-            var bwIcon = new ToolStripMenuItem(Properties.Strings.BWTrayIcon);
-            bwIcon.Margin = padding;
-            bwIcon.Checked = AppConfig.IsBWIcon();
-            bwIcon.Click += (sender, args) =>
+            var trayMenu = new ToolStripMenuItem(Properties.Strings.ResourceManager.GetString("TrayIcon") ?? "Tray Icon") { Margin = padding };
+            var trayModeItems = new List<ToolStripMenuItem>();
+            ToolStripMenuItem bwIcon = null!;
+            void AddTrayMode(TrayIconMode mode, string resourceKey, string fallback)
+            {
+                var item = new ToolStripMenuItem(Properties.Strings.ResourceManager.GetString(resourceKey) ?? fallback)
+                {
+                    Margin = padding,
+                    Checked = Program.trayIconController?.Mode == mode
+                };
+                item.Click += (_, _) =>
+                {
+                    Program.trayIconController?.SetMode(mode);
+                    foreach (ToolStripMenuItem modeItem in trayModeItems) modeItem.Checked = ReferenceEquals(modeItem, item);
+                    bwIcon.Enabled = mode == TrayIconMode.Default;
+                };
+                trayModeItems.Add(item);
+                trayMenu.DropDownItems.Add(item);
+            }
+
+            bwIcon = new ToolStripMenuItem(Properties.Strings.BWTrayIcon)
+            {
+                Margin = padding,
+                Checked = AppConfig.IsBWIcon(),
+                Enabled = Program.trayIconController?.Mode == TrayIconMode.Default
+            };
+            bwIcon.Click += (_, _) =>
             {
                 bwIcon.Checked = !bwIcon.Checked;
                 AppConfig.Set("bw_icon", bwIcon.Checked ? 1 : 0);
                 VisualiseIcon();
             };
-            contextMenuStrip.Items.Add(bwIcon);
+
+            AddTrayMode(TrayIconMode.Default, "TrayIconDefault", "Default GPU Icon");
+            AddTrayMode(TrayIconMode.CpuTemperature, "TrayIconCpuTemperature", "CPU Temperature");
+            AddTrayMode(TrayIconMode.GpuTemperature, "TrayIconGpuTemperature", "GPU Temperature");
+            AddTrayMode(TrayIconMode.BatteryPower, "TrayIconBatteryPower", "Battery Power");
+            AddTrayMode(TrayIconMode.BatteryCharge, "TrayIconBatteryCharge", "Battery Charge");
+            trayMenu.DropDownItems.Add("-");
+            trayMenu.DropDownItems.Add(bwIcon);
+            contextMenuStrip.Items.Add(trayMenu);
 
             contextMenuStrip.Items.Add("-");
 
@@ -1961,30 +1992,9 @@ namespace GHelper
         }
 
 
-        private (int, bool, bool)? lastIcon;
-        private bool isDark = CheckSystemDarkModeStatus();
-
         public void VisualiseIcon(bool themeChange = false)
         {
-            if (Program.trayIcon is null) return;
-            if (themeChange) isDark = CheckSystemDarkModeStatus();
-
-            int GPUMode = AppConfig.Get("gpu_mode");
-            bool bw = AppConfig.IsBWIcon();
-
-            if (lastIcon == (GPUMode, isDark, bw)) return;
-            lastIcon = (GPUMode, isDark, bw);
-
-            Icon newIcon = GPUMode switch
-            {
-                AsusACPI.GPUModeEco => bw ? (isDark ? Properties.Resources.light_eco : Properties.Resources.dark_eco) : Properties.Resources.eco,
-                AsusACPI.GPUModeUltimate => bw ? (isDark ? Properties.Resources.light_standard : Properties.Resources.dark_standard) : Properties.Resources.ultimate,
-                _ => bw ? (isDark ? Properties.Resources.light_standard : Properties.Resources.dark_standard) : Properties.Resources.standard,
-            };
-
-            Icon? oldIcon = Program.trayIcon.Icon;
-            Program.trayIcon.Icon = newIcon;
-            oldIcon?.Dispose();
+            Program.trayIconController?.UpdateDefaultIcon(themeChange);
         }
 
         private void PictureGPU_Click(object? sender, EventArgs e)

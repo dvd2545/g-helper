@@ -8,11 +8,22 @@ namespace GHelper
 
         static string activeBinding = "";
         static RButton? activeButton;
+        private readonly Dictionary<string, RButton> _bindingButtons = new(StringComparer.OrdinalIgnoreCase);
+        private readonly List<RComboBox> _bindingCombos = [];
+        private ComboBox? _presetCombo;
+        private CheckBox? _autoSwitch;
+        private CheckBox? _showToast;
+        private Button? _appsButton;
+        private bool _updatingPresets;
+        private string _combinationSignature = "";
 
         public Handheld()
         {
             InitializeComponent();
             InitTheme(true);
+
+            _ = ControllerPresetManager.Presets();
+            InitPresetToolbar();
 
             Text = Properties.Strings.Controller;
 
@@ -92,6 +103,9 @@ namespace GHelper
             checkController.Checked = AppConfig.Is("controller_disabled");
             checkController.CheckedChanged += CheckController_CheckedChanged;
 
+            ControllerPresetManager.Changed += PresetsChanged;
+            FormClosed += (_, _) => ControllerPresetManager.Changed -= PresetsChanged;
+
         }
 
         private void CheckController_CheckedChanged(object? sender, EventArgs e)
@@ -110,11 +124,20 @@ namespace GHelper
                 foreach (var (code, name) in items)
                     list.Add(new BindingItem(code, name));
             }
+
+            IReadOnlyList<InputCombination> combinations = ControllerPresetManager.Combinations();
+            if (combinations.Count > 0)
+            {
+                list.Add(new BindingSeparator(DialogText.Get("CustomCombinations", "Custom Combinations")));
+                foreach (InputCombination combination in combinations)
+                    list.Add(new BindingItem("combo:" + combination.Id, combination.Name));
+            }
             return list.ToArray();
         }
 
         private void ComboBinding(RComboBox combo)
         {
+            _bindingCombos.Add(combo);
             combo.DropDownStyle = ComboBoxStyle.DropDownList;
             combo.DrawMode = DrawMode.OwnerDrawFixed;
             combo.Items.AddRange(BuildBindingComboItems());
@@ -187,25 +210,18 @@ namespace GHelper
 
             if (combo.SelectedItem is not BindingItem item) return;
 
-            string binding = "bind" + (combo.Name == "comboPrimary" ? "" : "2") + "_" + activeBinding;
-
-            if (item.Code != "") AppConfig.Set(binding, item.Code);
-            else AppConfig.Remove(binding);
+            bool secondary = combo.Name != "comboPrimary";
+            ControllerPresetManager.SetBinding(activeBinding, secondary, item.Code == "" ? null : item.Code);
 
             VisualiseButton(activeButton, activeBinding);
-
-            AllyControl.ApplyMode();
         }
 
         private void TurboSelectedValueChanged(object? sender, EventArgs e)
         {
-            if (sender is null) return;
+            if (_updatingBindings || sender is null) return;
             RComboBox combo = (RComboBox)sender;
             int ms = ((KeyValuePair<int, string>)combo.SelectedItem).Key;
-            string key = (combo.Name == "comboTurboPrimary" ? "turbo_" : "turbo2_") + activeBinding;
-            if (ms > 0) AppConfig.Set(key, ms);
-            else AppConfig.Remove(key);
-            AllyControl.ApplyMode();
+            ControllerPresetManager.SetTurbo(activeBinding, combo.Name != "comboTurboPrimary", ms);
         }
 
         private void SetComboValue(RComboBox combo, string value)
@@ -224,18 +240,20 @@ namespace GHelper
 
         private void SetTurboValue(RComboBox combo, int ms)
         {
+            _updatingBindings = true;
             foreach (var item in combo.Items)
                 if (((KeyValuePair<int, string>)item).Key == ms)
-                { combo.SelectedItem = item; return; }
+                { combo.SelectedItem = item; _updatingBindings = false; return; }
             combo.SelectedIndex = 0;
+            _updatingBindings = false;
         }
 
         private void VisualiseButton(RButton button, string binding)
         {
             if (button == null) return;
 
-            string primary = AppConfig.GetString("bind_" + binding, "");
-            string secondary = AppConfig.GetString("bind2_" + binding, "");
+            string primary = ControllerPresetManager.GetBindingSelection(binding, false) ?? "";
+            string secondary = ControllerPresetManager.GetBindingSelection(binding, true) ?? "";
 
             if (primary != "" || secondary != "")
             {
@@ -250,6 +268,7 @@ namespace GHelper
 
         private void ButtonBinding(string binding, string label, RButton button)
         {
+            _bindingButtons[binding] = button;
             button.Click += (sender, EventArgs) => { buttonBinding_Click(sender, EventArgs, binding, label); };
             VisualiseButton(button, binding);
         }
@@ -267,11 +286,189 @@ namespace GHelper
 
             labelBinding.Text = Properties.Strings.Binding + ": " + label;
 
-            SetComboValue(comboPrimary, AppConfig.GetString("bind_" + binding, ""));
-            SetComboValue(comboSecondary, AppConfig.GetString("bind2_" + binding, ""));
+            SetComboValue(comboPrimary, ControllerPresetManager.GetBindingSelection(binding, false) ?? "");
+            SetComboValue(comboSecondary, ControllerPresetManager.GetBindingSelection(binding, true) ?? "");
 
-            SetTurboValue(comboTurboPrimary, AppConfig.Get("turbo_" + binding, 0));
-            SetTurboValue(comboTurboSecondary, AppConfig.Get("turbo2_" + binding, 0));
+            SetTurboValue(comboTurboPrimary, ControllerPresetManager.GetTurbo(binding, false));
+            SetTurboValue(comboTurboSecondary, ControllerPresetManager.GetTurbo(binding, true));
+        }
+
+        private void InitPresetToolbar()
+        {
+            var toolbar = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Top,
+                Height = 94,
+                AutoSize = false,
+                Padding = new Padding(8),
+                WrapContents = true
+            };
+
+            toolbar.Controls.Add(new Label
+            {
+                Text = DialogText.Get("ControllerPreset", "Preset"),
+                AutoSize = true,
+                Margin = new Padding(3, 10, 6, 0)
+            });
+
+            _presetCombo = new ComboBox { Width = 190, DropDownStyle = ComboBoxStyle.DropDownList };
+            _presetCombo.SelectedIndexChanged += (_, _) =>
+            {
+                if (_updatingPresets || _presetCombo.SelectedItem is not PresetItem item) return;
+                ControllerPresetManager.SelectPreset(item.Id);
+            };
+            toolbar.Controls.Add(_presetCombo);
+
+            toolbar.Controls.Add(MakeToolbarButton(DialogText.Get("New", "New"), NewPreset));
+            toolbar.Controls.Add(MakeToolbarButton(DialogText.Get("Duplicate", "Duplicate"), DuplicatePreset));
+            toolbar.Controls.Add(MakeToolbarButton(DialogText.Get("Rename", "Rename"), RenamePreset));
+            toolbar.Controls.Add(MakeToolbarButton(DialogText.Get("Delete", "Delete"), DeletePreset));
+            toolbar.Controls.Add(MakeToolbarButton("↑", () => MovePreset(-1), 42));
+            toolbar.Controls.Add(MakeToolbarButton("↓", () => MovePreset(1), 42));
+
+            _appsButton = MakeToolbarButton(DialogText.Get("Apps", "Apps"), ManageApps);
+            toolbar.Controls.Add(_appsButton);
+            toolbar.Controls.Add(MakeToolbarButton(DialogText.Get("Combinations", "Combinations"), ManageCombinations, 125));
+
+            _autoSwitch = new CheckBox { Text = DialogText.Get("AutoSwitch", "Auto switch"), AutoSize = true, Margin = new Padding(12, 9, 3, 0) };
+            _autoSwitch.CheckedChanged += (_, _) =>
+            {
+                if (!_updatingPresets) ControllerPresetManager.SetAutoSwitch(_autoSwitch.Checked);
+            };
+            toolbar.Controls.Add(_autoSwitch);
+
+            _showToast = new CheckBox { Text = DialogText.Get("PresetToast", "Switch notice"), AutoSize = true, Margin = new Padding(8, 9, 3, 0) };
+            _showToast.CheckedChanged += (_, _) =>
+            {
+                if (!_updatingPresets) ControllerPresetManager.SetShowToast(_showToast.Checked);
+            };
+            toolbar.Controls.Add(_showToast);
+
+            Controls.Add(toolbar);
+            toolbar.BringToFront();
+            RefreshPresetToolbar();
+            _combinationSignature = GetCombinationSignature();
+        }
+
+        private static Button MakeToolbarButton(string text, Action action, int width = 88)
+        {
+            var button = new Button { Text = text, Width = width, Height = 38, Margin = new Padding(3) };
+            button.Click += (_, _) => action();
+            return button;
+        }
+
+        private PresetItem? SelectedPresetItem => _presetCombo?.SelectedItem as PresetItem;
+
+        private void RefreshPresetToolbar()
+        {
+            if (_presetCombo is null || _autoSwitch is null || _showToast is null) return;
+            _updatingPresets = true;
+            string selectedId = ControllerPresetManager.AutoSwitchEnabled
+                ? ControllerPresetManager.EffectivePresetId
+                : ControllerPresetManager.SelectedPresetId;
+            _presetCombo.Items.Clear();
+            foreach (ControllerPresetSummary preset in ControllerPresetManager.Presets())
+            {
+                var item = new PresetItem(preset.Id, preset.Name, preset.IsDefault);
+                _presetCombo.Items.Add(item);
+                if (preset.Id == selectedId) _presetCombo.SelectedItem = item;
+            }
+            _autoSwitch.Checked = ControllerPresetManager.AutoSwitchEnabled;
+            _showToast.Checked = ControllerPresetManager.ShowSwitchToast;
+            _appsButton!.Enabled = SelectedPresetItem is { IsDefault: false };
+            _updatingPresets = false;
+        }
+
+        private void NewPreset()
+        {
+            using var prompt = new TextPromptDialog(DialogText.Get("NewPreset", "New Preset"), DialogText.Get("Name", "Name"), "Preset");
+            if (prompt.ShowDialog(this) != DialogResult.OK) return;
+            string id = ControllerPresetManager.AddPreset(prompt.Value);
+            ControllerPresetManager.SelectPreset(id);
+        }
+
+        private void DuplicatePreset()
+        {
+            if (SelectedPresetItem is not PresetItem selected) return;
+            string id = ControllerPresetManager.DuplicatePreset(selected.Id);
+            ControllerPresetManager.SelectPreset(id);
+        }
+
+        private void RenamePreset()
+        {
+            if (SelectedPresetItem is not PresetItem selected) return;
+            using var prompt = new TextPromptDialog(DialogText.Get("Rename", "Rename"), DialogText.Get("Name", "Name"), selected.Name);
+            if (prompt.ShowDialog(this) == DialogResult.OK) ControllerPresetManager.RenamePreset(selected.Id, prompt.Value);
+        }
+
+        private void DeletePreset()
+        {
+            if (SelectedPresetItem is not { IsDefault: false } selected) return;
+            if (MessageBox.Show(this, DialogText.Get("DeletePresetConfirm", "Delete this preset?"), Text,
+                MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes)
+                ControllerPresetManager.DeletePreset(selected.Id);
+        }
+
+        private void MovePreset(int delta)
+        {
+            if (SelectedPresetItem is PresetItem selected) ControllerPresetManager.MovePreset(selected.Id, delta);
+        }
+
+        private void ManageApps()
+        {
+            if (SelectedPresetItem is not { IsDefault: false } selected) return;
+            using var dialog = new PresetRulesDialog(selected.Id);
+            dialog.ShowDialog(this);
+        }
+
+        private void ManageCombinations()
+        {
+            using var dialog = new CombinationLibraryDialog();
+            dialog.ShowDialog(this);
+            RefreshBindingItems();
+        }
+
+        private void PresetsChanged()
+        {
+            if (IsDisposed || !IsHandleCreated) return;
+            if (InvokeRequired) { BeginInvoke(PresetsChanged); return; }
+
+            RefreshPresetToolbar();
+            string signature = GetCombinationSignature();
+            if (signature != _combinationSignature)
+            {
+                _combinationSignature = signature;
+                RefreshBindingItems();
+            }
+            else if (activeBinding.Length > 0)
+            {
+                SetComboValue(comboPrimary, ControllerPresetManager.GetBindingSelection(activeBinding, false) ?? "");
+                SetComboValue(comboSecondary, ControllerPresetManager.GetBindingSelection(activeBinding, true) ?? "");
+                SetTurboValue(comboTurboPrimary, ControllerPresetManager.GetTurbo(activeBinding, false));
+                SetTurboValue(comboTurboSecondary, ControllerPresetManager.GetTurbo(activeBinding, true));
+            }
+
+            foreach (var pair in _bindingButtons) VisualiseButton(pair.Value, pair.Key);
+        }
+
+        private string GetCombinationSignature() => string.Join("|", ControllerPresetManager.Combinations().Select(c => c.Id + ":" + c.Name));
+
+        private void RefreshBindingItems()
+        {
+            object[] items = BuildBindingComboItems();
+            _updatingBindings = true;
+            foreach (RComboBox combo in _bindingCombos)
+            {
+                combo.Items.Clear();
+                combo.Items.AddRange(items);
+            }
+            _updatingBindings = false;
+
+            if (activeBinding.Length > 0)
+            {
+                SetComboValue(comboPrimary, ControllerPresetManager.GetBindingSelection(activeBinding, false) ?? "");
+                SetComboValue(comboSecondary, ControllerPresetManager.GetBindingSelection(activeBinding, true) ?? "");
+            }
         }
 
 
@@ -376,6 +573,11 @@ namespace GHelper
                 public string Label { get; }
                 public BindingSeparator(string label) { Label = label; }
                 public override string ToString() => Label;
+            }
+
+            private sealed record PresetItem(string Id, string Name, bool IsDefault)
+            {
+                public override string ToString() => Name;
             }
         }
     }

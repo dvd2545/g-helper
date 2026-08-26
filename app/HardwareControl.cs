@@ -959,19 +959,26 @@ public static class HardwareControl
 
     public static double GetBatteryChargePercentage()
     {
+        return TryGetBatteryChargePercentage(out double percentage) ? percentage : 0;
+    }
+
+    public static bool TryGetBatteryChargePercentage(out double percentage)
+    {
+        percentage = 0;
         try
         {
             SYSTEM_POWER_STATUS status = default;
             if (GetSystemPowerStatus(ref status) && status.BatteryLifePercent != 255)
             {
-                return status.BatteryLifePercent;
+                percentage = status.BatteryLifePercent;
+                return true;
             }
         }
         catch (Exception ex)
         {
             Debug.WriteLine("Battery Percentage Reading: " + ex.Message);
         }
-        return 0;
+        return false;
     }
 
     public static bool IsUsedGPU(int threshold = 10)

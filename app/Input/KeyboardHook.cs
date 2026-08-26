@@ -3,8 +3,8 @@
 public sealed class KeyboardHook : IDisposable
 {
     // Registers a hot key with Windows.
-    [DllImport("user32.dll")]
-    private static extern bool RegisterHotKey(IntPtr hWnd, int id, uint fsModifiers, uint vk);
+    [DllImport("user32.dll", EntryPoint = "RegisterHotKey")]
+    private static extern bool RegisterHotKeyNative(IntPtr hWnd, int id, uint fsModifiers, uint vk);
     // Unregisters the hot key with Windows.
     [DllImport("user32.dll")]
     private static extern bool UnregisterHotKey(IntPtr hWnd, int id);
@@ -158,14 +158,20 @@ public sealed class KeyboardHook : IDisposable
     /// </summary>
     /// <param name="modifier">The modifiers that are associated with the hot key.</param>
     /// <param name="key">The key itself that is associated with the hot key.</param>
-    public void RegisterHotKey(ModifierKeys modifier, Keys key)
+    public bool RegisterHotKey(ModifierKeys modifier, Keys key)
     {
         // increment the counter.
         _currentId = _currentId + 1;
 
         // register the hot key.
-        if (!RegisterHotKey(_window.Handle, _currentId, (uint)modifier, (uint)key))
+        if (!RegisterHotKeyNative(_window.Handle, _currentId, (uint)modifier, (uint)key))
+        {
             Logger.WriteLine("Couldn’t register " + key);
+            _currentId--;
+            return false;
+        }
+
+        return true;
     }
 
     /// <summary>

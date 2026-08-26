@@ -22,3 +22,6 @@ jobs:
     - name: Build
       run: |
         dotnet build app/GHelper.sln
+    - name: Test
+      run: |
+        dotnet test app/GHelper.sln --no-build
