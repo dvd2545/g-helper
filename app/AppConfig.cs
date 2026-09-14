@@ -393,6 +393,11 @@ public static class AppConfig
         return ContainsModel("RC7");
     }
 
+    public static bool IsXboxAlly()
+    {
+        return ContainsModel("RC73");
+    }
+
     public static bool IsAuraSync()
     {
         return Is("mouse_aura_sync");
@@ -468,7 +473,7 @@ public static class AppConfig
     // G14 2020 has no aura, but media keys instead
     public static bool NoAura()
     {
-        return (ContainsModel("GA401I") && !ContainsModel("GA401IHR")) || ContainsModel("GA502IU") || ContainsModel("HN7306") || ContainsModel("M6500X");
+        return (ContainsModel("GA401I") && !ContainsModel("GA401IHR")) || ContainsModel("GA502IU") || ContainsModel("HN7306") || ContainsModel("H7606") || ContainsModel("M6500X");
     }
 
     public static bool MediaKeys()
@@ -533,7 +538,12 @@ public static class AppConfig
 
     public static bool IsEcoBootFix()
     {
-        return ContainsModel("G635L") || ContainsModel("G615L") || ContainsModel("G835L") || ContainsModel("G815L") || ContainsModel("FA506");
+        return ContainsModel("G635L") || ContainsModel("G615L") || ContainsModel("G835L") || ContainsModel("G815L") || ContainsModel("FA506") || ContainsModel("FX608");
+    }
+
+    public static bool IsELMB()
+    {
+        return ContainsModel("G835LX");
     }
 
     public static bool IsStandardForceFix()
@@ -588,7 +598,7 @@ public static class AppConfig
 
     public static bool IsDetachableKeyboard()
     {
-        return ContainsModel("Z13") || ContainsModel("UX8407");
+        return ContainsModel("Z13") || ContainsModel("UX8406") || ContainsModel("UX8407");
     }
 
     public static bool HasRearLight()
@@ -783,7 +793,7 @@ public static class AppConfig
 
     public static bool IsChargeLimit6080()
     {
-        return ContainsModel("GU405") || ContainsModel("GU606") || ContainsModel("H760") || ContainsModel("GA403") || ContainsModel("GU605") || ContainsModel("GA605") || ContainsModel("GA503R") || (IsTUF() && !(ContainsModel("FX507Z") || ContainsModel("FA617") || ContainsModel("FA607")));
+        return ContainsModel("GU405") || ContainsModel("GU606") || ContainsModel("H760") || ContainsModel("GA403") || ContainsModel("GU605") || ContainsModel("GA605") || ContainsModel("GA503R") || (IsTUF() && !(ContainsModel("FX507Z") || ContainsModel("FA617") || ContainsModel("FA607") || ContainsModel("FX607")));
 
     }
 

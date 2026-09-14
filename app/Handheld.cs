@@ -33,6 +33,7 @@ namespace GHelper
             labelRTTitle.Text = Properties.Strings.RTDeadzones;
             labelVibraTitle.Text = Properties.Strings.VibrationStrength;
             checkController.Text = Properties.Strings.DisableController;
+            checkVibra.Text = Properties.Strings.EnhancedVibration;
             buttonReset.Text = Properties.Strings.Reset;
 
             labelPrimary.Text = Properties.Strings.BindingPrimary;
@@ -106,12 +107,27 @@ namespace GHelper
             ControllerPresetManager.Changed += PresetsChanged;
             FormClosed += (_, _) => ControllerPresetManager.Changed -= PresetsChanged;
 
+            checkVibra.Visible = AppConfig.IsXboxAlly();
+            checkVibra.Checked = AppConfig.Is("vibra_enhanced");
+            checkVibra.CheckedChanged += CheckVibra_CheckedChanged;
+            if (checkVibra.Visible)
+            {
+                panelVibra.MaximumSize = new Size(0, panelVibra.Height + checkVibra.Bottom - checkController.Bottom);
+                panelVibra.MinimumSize = panelVibra.MaximumSize;
+            }
+
         }
 
         private void CheckController_CheckedChanged(object? sender, EventArgs e)
         {
             AppConfig.Set("controller_disabled", checkController.Checked ? 1 : 0);
             AllyControl.DisableXBoxController(checkController.Checked);
+        }
+
+        private void CheckVibra_CheckedChanged(object? sender, EventArgs e)
+        {
+            AppConfig.Set("vibra_enhanced", checkVibra.Checked ? 1 : 0);
+            AllyControl.SetVibrationMode();
         }
 
         private static object[] BuildBindingComboItems()
@@ -491,6 +507,7 @@ namespace GHelper
             trackRTMax.Value = 100;
 
             trackVibra.Value = 100;
+            checkVibra.Checked = false;
 
             AppConfig.Remove("ls_min");
             AppConfig.Remove("ls_max");
@@ -502,6 +519,7 @@ namespace GHelper
             AppConfig.Remove("rt_min");
             AppConfig.Remove("rt_max");
             AppConfig.Remove("vibra");
+            AppConfig.Remove("vibra_enhanced");
 
             VisualiseController();
 

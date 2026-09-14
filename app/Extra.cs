@@ -162,6 +162,7 @@ namespace GHelper
             //labelBacklightTimeoutPlugged.Text = Properties.Strings.BacklightTimeoutPlugged;
 
             checkNoOverdrive.Text = Properties.Strings.DisableOverdrive;
+            checkELMB.Text = Properties.Strings.ExtremeLowMotionBlur;
             checkTopmost.Text = Properties.Strings.WindowTop;
             checkUSBC.Text = Properties.Strings.OptimizedUSBC;
             checkAutoToggleClamshellMode.Text = Properties.Strings.ToggleClamshellMode;
@@ -419,6 +420,11 @@ namespace GHelper
             checkNoOverdrive.Checked = AppConfig.IsNoOverdrive();
             checkNoOverdrive.CheckedChanged += CheckNoOverdrive_CheckedChanged;
 
+            int elmb = ScreenELMB.Get();
+            checkELMB.Visible = elmb >= 0;
+            checkELMB.Checked = elmb == 1;
+            checkELMB.CheckedChanged += CheckELMB_CheckedChanged;
+
             checkUSBC.Checked = AppConfig.Is("optimized_usbc");
             checkUSBC.CheckedChanged += CheckUSBC_CheckedChanged;
 
@@ -491,7 +497,6 @@ namespace GHelper
             toolTip.SetToolTip(checkStandbyNetworking, Properties.Strings.DisableStandbyNetworkingTooltip);
 
             InitCores();
-            InitServices();
             InitHibernate();
             InitVramMem();
 
@@ -744,9 +749,16 @@ namespace GHelper
 
         private void InitServices()
         {
+            buttonServices.Enabled = false;
+            Task.Run(() =>
+            {
+                int servicesCount = AsusService.GetRunningCount();
+                if (!IsDisposed) Invoke(() => VisualiseServices(servicesCount));
+            });
+        }
 
-            int servicesCount = AsusService.GetRunningCount();
-
+        private void VisualiseServices(int servicesCount)
+        {
             if (servicesCount > 0)
             {
                 buttonServices.Text = Properties.Strings.Stop;
@@ -818,6 +830,12 @@ namespace GHelper
         {
             AppConfig.Set("xmg_light", (checkXGM.Checked ? 1 : 0));
             XGM.Light(checkXGM.Checked);
+        }
+
+        private void CheckELMB_CheckedChanged(object? sender, EventArgs e)
+        {
+            AppConfig.Set("elmb", checkELMB.Checked ? 1 : 0);
+            ScreenELMB.Set(checkELMB.Checked ? 1 : 0);
         }
 
         private void CheckUSBC_CheckedChanged(object? sender, EventArgs e)
@@ -922,6 +940,7 @@ namespace GHelper
             }
 
             Left = Program.settingsForm.Left - Width - 5;
+            InitServices();
         }
 
 
