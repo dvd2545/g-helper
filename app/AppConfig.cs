@@ -408,6 +408,11 @@ public static class AppConfig
         return Is("keyboard_aura_sync");
     }
 
+    public static bool IsHeadsetAuraSync()
+    {
+        return Is("headset_aura_sync");
+    }
+
     public static bool NoMKeys()
     {
         return (ContainsModel("Z13") && !IsARCNM()) ||
@@ -680,7 +685,7 @@ public static class AppConfig
 
     public static bool IsCPULight()
     {
-        return ContainsModel("GA402X") || ContainsModel("GA605") || ContainsModel("GA403") || ContainsModel("FA507N") || ContainsModel("FA507X") || ContainsModel("FA707N") || ContainsModel("FA707X") || ContainsModel("GZ302") || ContainsModel("GU405") || ContainsModel("GX651");
+        return ContainsModel("GA402X") || ContainsModel("GA605") || ContainsModel("GA403") || ContainsModel("FA507N") || GetModelShort().Contains("FA507X") || ContainsModel("FA707N") || ContainsModel("FA707X") || ContainsModel("GZ302") || ContainsModel("GU405") || ContainsModel("GX651");
     }
 
     public static bool IsPowerRequired()

@@ -647,6 +647,42 @@ Apakah Anda masih ingin melanjutkan?</value>
   <data name="MouseSynchronize" xml:space="preserve">
     <value>Sinkronkan dengan mouse</value>
   </data>
+  <data name="HeadsetEqualizer" xml:space="preserve">
+    <value>Equalizer</value>
+  </data>
+  <data name="HeadsetMicrophoneType" xml:space="preserve">
+    <value>Mikrofon</value>
+  </data>
+  <data name="HeadsetMicBoom" xml:space="preserve">
+    <value>Boom</value>
+  </data>
+  <data name="HeadsetMicInline" xml:space="preserve">
+    <value>Inline</value>
+  </data>
+  <data name="HeadsetMicExternal" xml:space="preserve">
+    <value>Eksternal</value>
+  </data>
+  <data name="HeadsetNoiseReduction" xml:space="preserve">
+    <value>Pengurangan Kebisingan</value>
+  </data>
+  <data name="HeadsetSidetone" xml:space="preserve">
+    <value>Sidetone</value>
+  </data>
+  <data name="HeadsetVoicePrompt" xml:space="preserve">
+    <value>Bahasa Petunjuk Suara</value>
+  </data>
+  <data name="HeadsetAdaptiveAnc" xml:space="preserve">
+    <value>ANC Adaptif</value>
+  </data>
+  <data name="HeadsetAmbient" xml:space="preserve">
+    <value>Ambient</value>
+  </data>
+  <data name="HeadsetPromptSound" xml:space="preserve">
+    <value>Nada Petunjuk</value>
+  </data>
+  <data name="Auto" xml:space="preserve">
+    <value>Otomatis</value>
+  </data>
   <data name="MouseSyncWithAura" xml:space="preserve">
     <value>Sinkronkan dengan laptop</value>
   </data>
@@ -1063,5 +1099,20 @@ memanaskan laptop yang tertidur dan menguras baterai.</value>
   </data>
   <data name="Always" xml:space="preserve">
     <value>Selalu</value>
+  </data>
+  <data name="TestLayout" xml:space="preserve">
+    <value>Tata Letak Uji</value>
+  </data>
+  <data name="FillAll" xml:space="preserve">
+    <value>Isi Semua</value>
+  </data>
+  <data name="Keys" xml:space="preserve">
+    <value>Tombol</value>
+  </data>
+  <data name="Animation" xml:space="preserve">
+    <value>Animasi</value>
+  </data>
+  <data name="Background" xml:space="preserve">
+    <value>Latar</value>
   </data>
 </root>

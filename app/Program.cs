@@ -41,7 +41,6 @@ namespace GHelper
 
         private static long lastAuto;
         private static readonly object autoLock = new();
-        private static long lastTheme;
 
         public static InputDispatcher? inputDispatcher;
 
@@ -174,6 +173,7 @@ namespace GHelper
             {
                 PeripheralsProvider.DetectAllAsusMice();
                 PeripheralsProvider.DetectAllAsusKeyboards();
+                PeripheralsProvider.DetectAllAsusHeadsets();
             });
             PeripheralsProvider.RegisterForDeviceEvents();
 
@@ -266,22 +266,16 @@ namespace GHelper
         static void SystemEvents_UserPreferenceChanged(object sender, UserPreferenceChangedEventArgs e)
         {
 
-            if (Math.Abs(DateTimeOffset.Now.ToUnixTimeMilliseconds() - lastTheme) < 2000) return;
-
             switch (e.Category)
             {
                 case UserPreferenceCategory.General:
-                    bool changed = settingsForm.InitTheme();
+                    if (!settingsForm.InitTheme()) return;
+
+                    Debug.WriteLine("Theme Changed");
                     settingsForm.InitContextMenuTheme();
                     settingsForm.VisualiseIcon(true);
                     settingsForm.VisualiseFnLock();
                     settingsForm.VisualiseBatteryFull();
-
-                    if (changed)
-                    {
-                        Debug.WriteLine("Theme Changed");
-                        lastTheme = DateTimeOffset.Now.ToUnixTimeMilliseconds();
-                    }
 
                     if (settingsForm.fansForm is not null && settingsForm.fansForm.Text != "")
                         settingsForm.fansForm.InitTheme();
