@@ -93,6 +93,33 @@ public class ControllerPresetTests
         Assert.Equal(Enumerable.Range(1, 100), normalized);
     }
 
+    [Theory]
+    [InlineData("{\"Presets\":[null]}")]
+    [InlineData("{\"Presets\":[{\"Id\":\"default\"},{\"Id\":\"default\"}]}")]
+    [InlineData("{\"Presets\":[{\"Id\":\"default\",\"Bindings\":{\"a\":{},\"A\":{}}}]}")]
+    [InlineData("{\"Presets\":[{\"Id\":\"default\",\"Rules\":[{\"MatchMode\":99}]}]}")]
+    [InlineData("{\"Presets\":[{\"Id\":\"default\"}],\"Combinations\":[{\"Id\":\"same\"},{\"Id\":\"same\"}]}")]
+    [InlineData("{\"Presets\":[{\"Id\":\"default\"}],\"Combinations\":[{\"MouseButton\":99}]}")]
+    public void InvalidStoredConfigurationIsRejectedWithoutThrowing(string json)
+    {
+        var config = JsonSerializer.Deserialize<ControllerPresetConfig>(json);
+
+        Assert.False(ControllerPresetManager.Validate(config));
+    }
+
+    [Fact]
+    public void RejectedConfigurationIsNotPartiallyNormalized()
+    {
+        var config = Config(Preset("game", Rule("game.exe", ExecutableMatchMode.Foreground)));
+        config.Combinations.Add(null!);
+        var bindings = config.Presets[0].Bindings;
+        var rules = config.Presets[1].Rules;
+
+        Assert.False(ControllerPresetManager.Validate(config));
+        Assert.Same(bindings, config.Presets[0].Bindings);
+        Assert.Same(rules, config.Presets[1].Rules);
+    }
+
     private static ControllerPresetConfig Config(params ControllerPreset[] presets) => new()
     {
         DefaultPresetId = "default",

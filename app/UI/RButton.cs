@@ -110,7 +110,9 @@ namespace GHelper.UI
 
             float ratio = pevent.Graphics.DpiX / 192.0f;
             int border = (int)Math.Round((ratio * borderSize - 1) / 2) * 2 + 1;
-            int radius = (int)Math.Round(ratio * borderRadius, MidpointRounding.AwayFromZero);
+            int configuredRadius = (int)Math.Round(ratio * borderRadius, MidpointRounding.AwayFromZero);
+            int modernRadius = TouchUi.ScaleDip(6, (int)pevent.Graphics.DpiX);
+            int radius = Math.Min(Math.Max(configuredRadius, modernRadius), Math.Max(1, Math.Min(Width, Height) / 2 - 1));
 
             Rectangle rectSurface = ClientRectangle;
 

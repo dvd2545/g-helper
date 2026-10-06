@@ -37,12 +37,19 @@ namespace GHelper.UI
 
         public bool NativeHeight { get; set; }
 
+        protected override void OnFontChanged(EventArgs e)
+        {
+            base.OnFontChanged(e);
+            CalibrateItemHeight();
+        }
+
         private void CalibrateItemHeight()
         {
             if (DrawMode != DrawMode.OwnerDrawFixed || NativeHeight) return;
             int chrome = PreferredHeight - ItemHeight;
-            int target = (int)Math.Round(44 * (DeviceDpi / 192f));
-            ItemHeight = Math.Max(1, target - chrome);
+            int target = Math.Max((int)Math.Round(44 * (DeviceDpi / 192f)), Font.Height + TouchUi.ScaleDip(6, DeviceDpi));
+            ItemHeight = Math.Max(Font.Height + TouchUi.ScaleDip(2, DeviceDpi), target - chrome);
+            MaxDropDownItems = TouchUi.IsTouchDevice ? 7 : 8;
         }
 
         protected override void OnDrawItem(DrawItemEventArgs e)

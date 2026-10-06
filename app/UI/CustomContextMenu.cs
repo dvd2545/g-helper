@@ -94,6 +94,12 @@ namespace GHelper.UI
             catch { }
         }
 
+        protected override void OnOpening(System.ComponentModel.CancelEventArgs e)
+        {
+            TouchUi.ApplyMenu(Items, DeviceDpi);
+            base.OnOpening(e);
+        }
+
         public enum DWMWINDOWATTRIBUTE
         {
             DWMWA_WINDOW_CORNER_PREFERENCE = 33

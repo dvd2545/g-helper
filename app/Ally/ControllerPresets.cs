@@ -26,6 +26,7 @@ public sealed class InputCombination
     public string Name { get; set; } = "Combination";
     public List<int> Keys { get; set; } = [];
     public CombinationMouseButton MouseButton { get; set; }
+    public string? ExecutablePath { get; set; }
 }
 
 public sealed class ControllerBindingTarget
@@ -363,7 +364,7 @@ public static class ControllerPresetManager
             SaveLocked();
         }
         Changed?.Invoke();
-        RefreshHardware();
+        if (!StickDirectionActions.BindingIds.Contains(buttonId, StringComparer.OrdinalIgnoreCase)) RefreshHardware();
     }
 
     public static int GetTurbo(string buttonId, bool secondary)
@@ -390,7 +391,7 @@ public static class ControllerPresetManager
         RefreshHardware();
     }
 
-    public static string AddCombination(string name, IEnumerable<int> keys, CombinationMouseButton mouseButton)
+    public static string AddCombination(string name, IEnumerable<int> keys, CombinationMouseButton mouseButton, string? executablePath = null)
     {
         EnsureLoaded();
         string id;
@@ -402,7 +403,8 @@ public static class ControllerPresetManager
                 Id = id,
                 Name = UniqueCombinationNameLocked(name),
                 Keys = NormalizeKeys(keys),
-                MouseButton = mouseButton
+                MouseButton = mouseButton,
+                ExecutablePath = executablePath
             });
             SaveLocked();
         }
@@ -411,7 +413,7 @@ public static class ControllerPresetManager
         return id;
     }
 
-    public static bool UpdateCombination(string id, string name, IEnumerable<int> keys, CombinationMouseButton mouseButton)
+    public static bool UpdateCombination(string id, string name, IEnumerable<int> keys, CombinationMouseButton mouseButton, string? executablePath = null)
     {
         EnsureLoaded();
         lock (Sync)
@@ -423,6 +425,7 @@ public static class ControllerPresetManager
             combination.Name = trimmed;
             combination.Keys = NormalizeKeys(keys);
             combination.MouseButton = mouseButton;
+            combination.ExecutablePath = executablePath;
             SaveLocked();
         }
         Changed?.Invoke();
@@ -492,10 +495,27 @@ public static class ControllerPresetManager
         lock (Sync)
         {
             ControllerPreset preset = PresetLocked(_effectivePresetId);
-            HashSet<string> ids = preset.Bindings.Values
+            HashSet<string> ids = preset.Bindings.Where(p => !StickDirectionActions.BindingIds.Contains(p.Key)).Select(p => p.Value)
                 .SelectMany(b => new[] { b.Primary.CombinationId, b.Secondary.CombinationId })
                 .Where(id => !string.IsNullOrWhiteSpace(id)).Select(id => id!).ToHashSet();
             return _config!.Combinations.Where(c => ids.Contains(c.Id)).Select(CloneCombination).ToArray();
+        }
+    }
+
+    internal static (string PresetId, Dictionary<int, InputCombination> Actions) StickActions()
+    {
+        EnsureLoaded();
+        lock (Sync)
+        {
+            ControllerPreset preset = PresetLocked(_effectivePresetId);
+            var actions = new Dictionary<int, InputCombination>();
+            for (int i = 0; i < StickDirectionActions.BindingIds.Length; i++)
+            {
+                string? id = BindingLocked(preset, StickDirectionActions.BindingIds[i], false)?.Primary.CombinationId;
+                InputCombination? action = _config!.Combinations.FirstOrDefault(c => c.Id == id);
+                if (action is not null) actions[i] = CloneCombination(action);
+            }
+            return (preset.Id, actions);
         }
     }
 
@@ -517,16 +537,26 @@ public static class ControllerPresetManager
     internal static bool Validate(ControllerPresetConfig? config)
     {
         if (config is null || config.SchemaVersion != 1 || config.Presets is null || config.Combinations is null) return false;
-        if (config.Presets.Count == 0 || config.Presets.All(p => p.Id != config.DefaultPresetId)) return false;
+        if (config.Presets.Count == 0 || config.Presets.Any(p => p is null)) return false;
+        if (config.Presets.All(p => p.Id != config.DefaultPresetId)) return false;
+        if (config.Presets.Select(p => p.Id).Distinct(StringComparer.Ordinal).Count() != config.Presets.Count) return false;
         foreach (ControllerPreset preset in config.Presets)
         {
             if (string.IsNullOrWhiteSpace(preset.Id) || preset.Name is null || preset.Bindings is null || preset.Rules is null) return false;
             if (preset.Bindings.Any(p => p.Value is null || p.Value.Primary is null || p.Value.Secondary is null)) return false;
+            if (preset.Bindings.Keys.Distinct(StringComparer.OrdinalIgnoreCase).Count() != preset.Bindings.Count) return false;
             if (preset.Rules.Any(r => r is null || r.ExecutablePath is null || r.ExecutableName is null)) return false;
+            if (preset.Rules.Any(r => !Enum.IsDefined(r.MatchMode))) return false;
+        }
+        if (config.Combinations.Any(c => c is null || string.IsNullOrWhiteSpace(c.Id) || c.Name is null || c.Keys is null || !Enum.IsDefined(c.MouseButton))) return false;
+        if (config.Combinations.Select(c => c.Id).Distinct(StringComparer.Ordinal).Count() != config.Combinations.Count) return false;
+
+        // Normalize only after the entire document has passed validation.
+        foreach (ControllerPreset preset in config.Presets)
+        {
             preset.Bindings = new Dictionary<string, ControllerButtonBinding>(preset.Bindings, StringComparer.OrdinalIgnoreCase);
             preset.Rules = preset.Rules.Select(NormalizeRule).ToList();
         }
-        if (config.Combinations.Any(c => c is null || string.IsNullOrWhiteSpace(c.Id) || c.Name is null || c.Keys is null)) return false;
         if (config.Presets.All(p => p.Id != config.SelectedPresetId)) config.SelectedPresetId = config.DefaultPresetId;
         return true;
     }
@@ -594,7 +624,7 @@ public static class ControllerPresetManager
     }
 
     internal static List<int> NormalizeKeys(IEnumerable<int> keys) => keys.Where(k => k > 0).Distinct().ToList();
-    private static InputCombination CloneCombination(InputCombination c) => new() { Id = c.Id, Name = c.Name, Keys = [.. c.Keys], MouseButton = c.MouseButton };
+    private static InputCombination CloneCombination(InputCombination c) => new() { Id = c.Id, Name = c.Name, Keys = [.. c.Keys], MouseButton = c.MouseButton, ExecutablePath = c.ExecutablePath };
     private static ControllerButtonBinding CloneBinding(ControllerButtonBinding b) => new()
     {
         Primary = new() { FirmwareCode = b.Primary.FirmwareCode, CombinationId = b.Primary.CombinationId },

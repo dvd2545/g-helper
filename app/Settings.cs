@@ -60,6 +60,14 @@ namespace GHelper
 
         bool sliderGammaIgnore = false;
 
+        // Used for layout verification without initializing hardware services.
+        internal SettingsForm(bool layoutPreview)
+        {
+            InitializeComponent();
+            InitTheme(true);
+            ConfigureScrollableLayout();
+        }
+
         public SettingsForm()
         {
 
@@ -304,6 +312,35 @@ namespace GHelper
 
             panelPerformance.Focus();
             InitVisual();
+            ConfigureScrollableLayout();
+        }
+
+        private void ConfigureScrollableLayout()
+        {
+            AutoSize = false;
+            AutoScroll = true;
+            var content = new Panel
+            {
+                AutoSize = true,
+                AutoSizeMode = AutoSizeMode.GrowAndShrink,
+                Dock = DockStyle.Top
+            };
+            Control[] sections = Controls.Cast<Control>().ToArray();
+            SuspendLayout();
+            foreach (Control section in sections) content.Controls.Add(section);
+            for (int i = 0; i < sections.Length; i++) content.Controls.SetChildIndex(sections[i], i);
+            Controls.Add(content);
+            ResumeLayout(true);
+            void FitContent()
+            {
+                Rectangle area = Screen.FromControl(this).WorkingArea;
+                int chrome = Height - ClientSize.Height;
+                int preferred = content.PreferredSize.Height + Padding.Vertical;
+                Height = Math.Min(preferred + chrome, area.Height);
+            }
+            content.SizeChanged += (_, _) => FitContent();
+            Shown += (_, _) => FitContent();
+            DpiChanged += (_, _) => BeginInvoke(FitContent);
         }
 
         private void ButtonArmoury_Click(object? sender, EventArgs e)
@@ -673,8 +710,9 @@ namespace GHelper
                 return;
             }
 
-            Left = Screen.FromControl(this).WorkingArea.Width - 10 - Width;
-            Top = Screen.FromControl(this).WorkingArea.Height - 10 - Height;
+            Rectangle area = Screen.FromControl(this).WorkingArea;
+            Left = Math.Max(area.Left, area.Right - 10 - Width);
+            Top = Math.Max(area.Top, area.Bottom - 10 - Height);
         }
 
         private void PanelBattery_MouseEnter(object? sender, EventArgs e)

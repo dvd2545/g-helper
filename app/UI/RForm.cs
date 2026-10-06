@@ -39,6 +39,12 @@ namespace GHelper.UI
 
         public bool darkTheme = false;
         private bool themeInitialized = false;
+
+        public RForm()
+        {
+            DoubleBuffered = true;
+            SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint, true);
+        }
         protected override CreateParams CreateParams
         {
             get
@@ -123,6 +129,7 @@ namespace GHelper.UI
             if (changed || firstInit)
             {
                 DwmSetWindowAttribute(Handle, 20, new[] { darkTheme ? 1 : 0 }, 4);
+                DwmSetWindowAttribute(Handle, 33, new[] { 2 }, 4);
                 SetPreferredAppMode(darkTheme ? 1 : 0); 
                 SetWindowTheme(Handle, darkTheme ? "DarkMode_Explorer" : "Explorer", null);
                 ControlHelper.Adjust(this, changed);

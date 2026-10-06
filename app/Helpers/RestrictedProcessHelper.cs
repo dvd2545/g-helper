@@ -6,6 +6,30 @@ namespace GHelper.Helpers;
 
 public static class RestrictedProcessHelper
 {
+    public static void RunExecutableAsRestrictedUser(string path)
+    {
+        path = Path.GetFullPath(path);
+        if (!File.Exists(path) || !Path.GetExtension(path).Equals(".exe", StringComparison.OrdinalIgnoreCase))
+            throw new FileNotFoundException("Select an existing executable (.exe).", path);
+        string directory = Path.GetDirectoryName(path)!;
+        if (!ProcessHelper.IsUserAdministrator())
+        {
+            Process.Start(new ProcessStartInfo(path) { UseShellExecute = false, WorkingDirectory = directory })?.Dispose();
+            return;
+        }
+        var commandLine = new StringBuilder().Append('"').Append(path).Append('"');
+        var startup = new STARTUPINFO { cb = Marshal.SizeOf<STARTUPINFO>() };
+        if (!GetShellUserToken(out var token) && !GetRestrictedSessionUserToken(out token))
+            throw new InvalidOperationException("Cannot obtain a non-elevated user token.");
+        try
+        {
+            if (!CreateProcessWithTokenW(token, 0, path, commandLine, 0, IntPtr.Zero, directory, ref startup, out var process))
+                throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error());
+            CloseHandle(process.hProcess);
+            CloseHandle(process.hThread);
+        }
+        finally { CloseHandle(token); }
+    }
     /// Runs a command via cmd.exe as a non-elevated version of the current user.
     public static void RunAsRestrictedUser(string command)
     {

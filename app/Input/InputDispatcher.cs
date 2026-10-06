@@ -64,6 +64,7 @@ namespace GHelper.Input
             {
                 CombinationCarrierManager.Initialize();
                 ControllerPresetManager.Start();
+                StickDirectionActions.Start();
             }
 
             timer.Elapsed += Timer_Elapsed;

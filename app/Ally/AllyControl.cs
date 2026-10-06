@@ -488,11 +488,11 @@ namespace GHelper.Ally
             settings.VisualiseBacklight(InputDispatcher.GetBacklight());
         }
 
-        static private byte[] DecodeBinding(string binding = "")
+        internal static byte[] DecodeBinding(string binding = "")
         {
             byte[] bytes;
 
-            if (binding == "" || binding is null) return new byte[2];
+            if (string.IsNullOrEmpty(binding)) return new byte[11];
 
             try
             {
@@ -500,10 +500,11 @@ namespace GHelper.Ally
             }
             catch
             {
-                return new byte[2];
+                return new byte[11];
             }
 
-            byte[] code = new byte[10];
+            byte[] code = new byte[11];
+            if (bytes.Length < 2 || (bytes[0] == 4 && (bytes[1] > 5 || bytes.Length != bytes[1] + 2))) return code;
             code[0] = bytes[0];
 
             switch (bytes[0])

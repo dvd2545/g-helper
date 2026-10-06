@@ -10,18 +10,23 @@ namespace GHelper
         static RButton? activeButton;
         private readonly Dictionary<string, RButton> _bindingButtons = new(StringComparer.OrdinalIgnoreCase);
         private readonly List<RComboBox> _bindingCombos = [];
-        private ComboBox? _presetCombo;
+        private RComboBox? _presetCombo;
         private CheckBox? _autoSwitch;
         private CheckBox? _showToast;
         private Button? _appsButton;
+        private Button? _programButton;
         private bool _updatingPresets;
         private string _combinationSignature = "";
 
         public Handheld()
         {
             InitializeComponent();
+            activeBinding = "";
+            activeButton = null;
             InitTheme(true);
 
+            AutoSize = false;
+            AutoScroll = true;
             _ = ControllerPresetManager.Presets();
             InitPresetToolbar();
 
@@ -90,7 +95,7 @@ namespace GHelper
             ButtonBinding("lb", "Left Bumper", buttonLB);
 
             ButtonBinding("rs", "Right Stick", buttonRS);
-            ButtonBinding("ll", "Left Stick", buttonLS);
+            ButtonBinding("ls", "Left Stick Click", buttonLS);
 
             ButtonBinding("vb", "View", buttonView);
             ButtonBinding("mb", "Menu", buttonMenu);
@@ -299,6 +304,7 @@ namespace GHelper
 
             activeButton = button;
             activeBinding = binding;
+            if (_programButton is not null) _programButton.Enabled = true;
 
             labelBinding.Text = Properties.Strings.Binding + ": " + label;
 
@@ -311,12 +317,14 @@ namespace GHelper
 
         private void InitPresetToolbar()
         {
+            int target = TouchUi.TargetSize(this, 28);
             var toolbar = new FlowLayoutPanel
             {
                 Dock = DockStyle.Top,
-                Height = 94,
-                AutoSize = false,
-                Padding = new Padding(8),
+                AutoSize = true,
+                AutoSizeMode = AutoSizeMode.GrowAndShrink,
+                MinimumSize = new Size(0, target + 16),
+                Padding = new Padding(10),
                 WrapContents = true
             };
 
@@ -324,10 +332,10 @@ namespace GHelper
             {
                 Text = DialogText.Get("ControllerPreset", "Preset"),
                 AutoSize = true,
-                Margin = new Padding(3, 10, 6, 0)
+                Margin = new Padding(6, 12, 10, 0)
             });
 
-            _presetCombo = new ComboBox { Width = 190, DropDownStyle = ComboBoxStyle.DropDownList };
+            _presetCombo = new RComboBox { Width = Math.Max(220, target * 3), DropDownStyle = ComboBoxStyle.DropDownList };
             _presetCombo.SelectedIndexChanged += (_, _) =>
             {
                 if (_updatingPresets || _presetCombo.SelectedItem is not PresetItem item) return;
@@ -344,16 +352,20 @@ namespace GHelper
 
             _appsButton = MakeToolbarButton(DialogText.Get("Apps", "Apps"), ManageApps);
             toolbar.Controls.Add(_appsButton);
-            toolbar.Controls.Add(MakeToolbarButton(DialogText.Get("Combinations", "Combinations"), ManageCombinations, 125));
+            toolbar.Controls.Add(MakeToolbarButton("Actions / Programs…", ManageCombinations, 150));
+            toolbar.Controls.Add(MakeToolbarButton("Analog actions…", () => { using var dialog = new StickDirectionDialog(); dialog.ShowDialog(this); }, 125));
+            _programButton = MakeToolbarButton("Bind program…", BindProgram, 125);
+            _programButton.Enabled = false;
+            toolbar.Controls.Add(_programButton);
 
-            _autoSwitch = new CheckBox { Text = DialogText.Get("AutoSwitch", "Auto switch"), AutoSize = true, Margin = new Padding(12, 9, 3, 0) };
+            _autoSwitch = new CheckBox { Text = DialogText.Get("AutoSwitch", "Auto switch"), AutoSize = true, Margin = new Padding(12, 3, 3, 0) };
             _autoSwitch.CheckedChanged += (_, _) =>
             {
                 if (!_updatingPresets) ControllerPresetManager.SetAutoSwitch(_autoSwitch.Checked);
             };
             toolbar.Controls.Add(_autoSwitch);
 
-            _showToast = new CheckBox { Text = DialogText.Get("PresetToast", "Switch notice"), AutoSize = true, Margin = new Padding(8, 9, 3, 0) };
+            _showToast = new CheckBox { Text = DialogText.Get("PresetToast", "Switch notice"), AutoSize = true, Margin = new Padding(8, 3, 3, 0) };
             _showToast.CheckedChanged += (_, _) =>
             {
                 if (!_updatingPresets) ControllerPresetManager.SetShowToast(_showToast.Checked);
@@ -362,15 +374,27 @@ namespace GHelper
 
             Controls.Add(toolbar);
             toolbar.BringToFront();
+            ControlHelper.Adjust(this);
             RefreshPresetToolbar();
             _combinationSignature = GetCombinationSignature();
         }
 
-        private static Button MakeToolbarButton(string text, Action action, int width = 88)
+        private Button MakeToolbarButton(string text, Action action, int width = 88)
         {
-            var button = new Button { Text = text, Width = width, Height = 38, Margin = new Padding(3) };
+            var button = new RButton { Text = text, AutoSize = true, MinimumSize = new Size(TouchUi.ScaleDip(width, DeviceDpi), TouchUi.ScaleDip(28, DeviceDpi)), Margin = new Padding(4), Secondary = true };
             button.Click += (_, _) => action();
             return button;
+        }
+
+        private void BindProgram()
+        {
+            if (activeButton is null || string.IsNullOrEmpty(activeBinding)) return;
+            using var picker = new OpenFileDialog { Filter = "Programs (*.exe)|*.exe", CheckFileExists = true, Title = "Select program for " + activeBinding.ToUpperInvariant() };
+            if (picker.ShowDialog(this) != DialogResult.OK) return;
+            string id = ControllerPresetManager.AddCombination(Path.GetFileNameWithoutExtension(picker.FileName), [], CombinationMouseButton.None, picker.FileName);
+            ControllerPresetManager.SetBinding(activeBinding, false, "combo:" + id);
+            SetComboValue(comboPrimary, "combo:" + id);
+            VisualiseButton(activeButton, activeBinding);
         }
 
         private PresetItem? SelectedPresetItem => _presetCombo?.SelectedItem as PresetItem;
@@ -573,9 +597,14 @@ namespace GHelper
 
         private void Handheld_Shown(object? sender, EventArgs e)
         {
-            Height = Program.settingsForm.Height;
-            Top = Program.settingsForm.Top;
-            Left = Program.settingsForm.Left - Width - 5;
+            Rectangle area = Screen.FromControl(Program.settingsForm).WorkingArea;
+            Size = new Size(Math.Min(Width, area.Width), Math.Min(Program.settingsForm.Height, area.Height));
+            Top = Math.Clamp(Program.settingsForm.Top, area.Top, area.Bottom - Height);
+
+            int sideBySideLeft = Program.settingsForm.Left - Width - 5;
+            Left = sideBySideLeft >= area.Left
+                ? sideBySideLeft
+                : area.Left + Math.Max(0, (area.Width - Width) / 2);
         }
 
             private sealed class BindingItem

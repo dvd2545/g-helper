@@ -6,6 +6,42 @@ namespace GHelper.Ally;
 
 public static class InputCombinationPlayer
 {
+    internal static readonly IntPtr InputMarker = new(0x47484342);
+    internal static string? FirmwareBinding(InputCombination combination)
+    {
+        if (!string.IsNullOrWhiteSpace(combination.ExecutablePath) || combination.MouseButton != CombinationMouseButton.None || combination.Keys.Count is < 1 or > 5) return null;
+        var codes = new List<byte>();
+        foreach (int key in combination.Keys)
+        {
+            byte? code = FirmwareKey(key);
+            if (code is null) return null;
+            codes.Add(code.Value);
+        }
+        return "04-" + codes.Count.ToString("X2") + "-" + string.Join("-", codes.Select(c => c.ToString("X2")));
+    }
+
+    private static byte? FirmwareKey(int key)
+    {
+        byte[] letterCodes = [0x1C,0x32,0x21,0x23,0x24,0x2B,0x34,0x33,0x43,0x3B,0x42,0x4B,0x3A,0x31,0x44,0x4D,0x15,0x2D,0x1B,0x2C,0x3C,0x2A,0x1D,0x22,0x35,0x1A];
+        if (key >= (int)Keys.A && key <= (int)Keys.Z) return letterCodes[key - (int)Keys.A];
+        byte[] digitCodes = [0x45,0x16,0x1E,0x26,0x25,0x2E,0x36,0x3D,0x3E,0x46];
+        if (key >= (int)Keys.D0 && key <= (int)Keys.D9) return digitCodes[key - (int)Keys.D0];
+        byte[] functionCodes = [0x05,0x06,0x04,0x0C,0x03,0x0B,0x80,0x0A,0x01,0x09,0x78,0x07];
+        if (key >= (int)Keys.F1 && key <= (int)Keys.F12) return functionCodes[key - (int)Keys.F1];
+        return (Keys)key switch
+        {
+            Keys.ControlKey or Keys.LControlKey => 0x8C, Keys.RControlKey => 0x8D,
+            Keys.ShiftKey or Keys.LShiftKey => 0x88, Keys.RShiftKey => 0x89,
+            Keys.Menu or Keys.LMenu => 0x8A, Keys.RMenu => 0x8B,
+            Keys.LWin => 0x82, Keys.RWin => 0x83,
+            Keys.Space => 0x29, Keys.Enter => 0x5A, Keys.Tab => 0x0D,
+            Keys.Escape => 0x76, Keys.Back => 0x66,
+            Keys.Up => 0x98, Keys.Down => 0x99, Keys.Left => 0x9A, Keys.Right => 0x9B,
+            Keys.Home => 0x94, Keys.End => 0x95, Keys.PageUp => 0x96, Keys.PageDown => 0x97,
+            Keys.Insert => 0xC2, Keys.Delete => 0xC0,
+            _ => null
+        };
+    }
     private const uint InputKeyboard = 1;
     private const uint InputMouse = 0;
     private const uint KeyUp = 0x0002;
@@ -60,6 +96,12 @@ public static class InputCombinationPlayer
 
     public static void Play(InputCombination combination)
     {
+        if (!string.IsNullOrWhiteSpace(combination.ExecutablePath))
+        {
+            try { RestrictedProcessHelper.RunExecutableAsRestrictedUser(combination.ExecutablePath); }
+            catch (Exception ex) { Logger.WriteLine("Launch action: " + ex.Message); }
+            return;
+        }
         var inputs = new List<INPUT>();
         foreach (int key in combination.Keys)
             inputs.Add(Keyboard((ushort)key, 0));
@@ -81,6 +123,7 @@ public static class InputCombinationPlayer
 
     public static string Format(InputCombination combination)
     {
+        if (!string.IsNullOrWhiteSpace(combination.ExecutablePath)) return "Open: " + combination.ExecutablePath;
         var parts = combination.Keys.Select(k => ((Keys)k).ToString()).ToList();
         if (combination.MouseButton != CombinationMouseButton.None) parts.Add(combination.MouseButton.ToString() + " Click");
         return parts.Count == 0 ? "No input" : string.Join(" + ", parts);
@@ -89,13 +132,18 @@ public static class InputCombinationPlayer
     private static INPUT Keyboard(ushort key, uint flags) => new()
     {
         type = InputKeyboard,
-        data = new InputUnion { keyboard = new KEYBDINPUT { virtualKey = key, flags = flags } }
+        data = new InputUnion { keyboard = new KEYBDINPUT { virtualKey = key, flags = flags | (IsExtendedKey(key) ? 1u : 0u), extraInfo = InputMarker } }
     };
+
+    internal static bool IsExtendedKey(int key) => (Keys)key is Keys.RControlKey or Keys.RMenu or
+        Keys.Insert or Keys.Delete or Keys.Home or Keys.End or Keys.PageUp or Keys.PageDown or
+        Keys.Up or Keys.Down or Keys.Left or Keys.Right or Keys.NumLock or Keys.Divide or
+        Keys.LWin or Keys.RWin or Keys.Apps;
 
     private static INPUT Mouse(uint flags, uint data) => new()
     {
         type = InputMouse,
-        data = new InputUnion { mouse = new MOUSEINPUT { flags = flags, mouseData = data } }
+        data = new InputUnion { mouse = new MOUSEINPUT { flags = flags, mouseData = data, extraInfo = InputMarker } }
     };
 
     private static (uint Down, uint Up, uint Data) MouseFlags(CombinationMouseButton button) => button switch
@@ -164,6 +212,8 @@ public static class CombinationCarrierManager
 
     public static string? GetFirmwareCode(string combinationId)
     {
+        InputCombination? combination = ControllerPresetManager.FindCombination(combinationId);
+        if (combination is not null && InputCombinationPlayer.FirmwareBinding(combination) is string native) return native;
         lock (Sync) return CodesByCombination.GetValueOrDefault(combinationId);
     }
 
@@ -180,6 +230,7 @@ public static class CombinationCarrierManager
             int carrier = 0;
             foreach (InputCombination combination in ControllerPresetManager.EffectiveCombinations())
             {
+                if (InputCombinationPlayer.FirmwareBinding(combination) is not null) continue;
                 bool registered = false;
                 while (carrier < CarrierKeys.Length)
                 {

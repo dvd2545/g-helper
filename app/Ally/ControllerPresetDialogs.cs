@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using GHelper.UI;
 
 namespace GHelper.Ally;
 
@@ -8,9 +9,9 @@ internal static class DialogText
     public static string Get(string key, string fallback) => Properties.Strings.ResourceManager.GetString(key) ?? fallback;
 }
 
-internal sealed class TextPromptDialog : Form
+internal sealed class TextPromptDialog : RForm
 {
-    private readonly TextBox _text = new() { Dock = DockStyle.Top };
+    private readonly RTextBox _text = new() { Dock = DockStyle.Top };
     public string Value => _text.Text.Trim();
 
     public TextPromptDialog(string title, string label, string value = "")
@@ -28,8 +29,8 @@ internal sealed class TextPromptDialog : Form
         var prompt = new Label { Text = label, Dock = DockStyle.Top, Height = 34 };
         _text.Text = value;
         var buttons = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 48, FlowDirection = FlowDirection.RightToLeft };
-        var ok = new Button { Text = DialogText.Get("OK", "OK"), DialogResult = DialogResult.OK, Width = 90 };
-        var cancel = new Button { Text = DialogText.Get("Cancel", "Cancel"), DialogResult = DialogResult.Cancel, Width = 90 };
+        var ok = new RButton { Text = DialogText.Get("OK", "OK"), DialogResult = DialogResult.OK, Width = 90 };
+        var cancel = new RButton { Text = DialogText.Get("Cancel", "Cancel"), DialogResult = DialogResult.Cancel, Width = 90, Secondary = true };
         buttons.Controls.Add(ok);
         buttons.Controls.Add(cancel);
         Controls.Add(_text);
@@ -38,30 +39,36 @@ internal sealed class TextPromptDialog : Form
         AcceptButton = ok;
         CancelButton = cancel;
         Shown += (_, _) => { _text.Focus(); _text.SelectAll(); };
+        TouchUi.PrepareDialog(this);
+        Width = Math.Max(Width, TouchUi.ScaleDip(420, DeviceDpi));
+        Height = Math.Max(Height, TouchUi.TargetSize(this) * 3 + 40);
+        MinimumSize = Size;
     }
 }
 
-internal sealed class CombinationEditorDialog : Form
+internal sealed class CombinationEditorDialog : RForm
 {
-    private readonly TextBox _name = new() { Dock = DockStyle.Top };
+    private readonly RTextBox _name = new() { Dock = DockStyle.Top };
     private readonly Label _preview = new() { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter, BorderStyle = BorderStyle.FixedSingle };
-    private readonly Button _record = new() { Width = 100 };
-    private readonly Button _clear = new() { Width = 100 };
-    private readonly Button _test = new() { Width = 100 };
+    private readonly RButton _record = new() { Width = 100 };
+    private readonly RButton _clear = new() { Width = 100, Secondary = true };
+    private readonly RButton _test = new() { Width = 100, Secondary = true };
     private readonly List<int> _keys = [];
     private readonly HashSet<int> _downKeys = [];
     private CombinationMouseButton _mouse;
     private bool _mouseDown;
     private bool _sawInput;
     private InputCapture? _capture;
+    private string? _executablePath;
 
     public string CombinationName => _name.Text.Trim();
     public IReadOnlyList<int> Keys => _keys;
     public CombinationMouseButton MouseButton => _mouse;
+    public string? ExecutablePath => _executablePath;
 
     public CombinationEditorDialog(InputCombination? combination = null)
     {
-        Text = DialogText.Get("CustomCombination", "Custom Combination");
+        Text = "Keyboard / mouse action or program";
         Width = 620;
         Height = 310;
         MinimizeBox = false;
@@ -76,21 +83,35 @@ internal sealed class CombinationEditorDialog : Form
         {
             _keys.AddRange(combination.Keys);
             _mouse = combination.MouseButton;
+            _executablePath = combination.ExecutablePath;
         }
 
         var nameLabel = new Label { Text = DialogText.Get("Name", "Name"), Dock = DockStyle.Top, Height = 28 };
         var previewHost = new Panel { Dock = DockStyle.Fill, Padding = new Padding(0, 12, 0, 12) };
         previewHost.Controls.Add(_preview);
 
-        var tools = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 48 };
+        var tools = new FlowLayoutPanel { Dock = DockStyle.Bottom, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink };
         _record.Text = DialogText.Get("Record", "Record");
         _clear.Text = DialogText.Get("Clear", "Clear");
         _test.Text = DialogText.Get("Test", "Test");
         tools.Controls.AddRange([_record, _clear, _test]);
+        var browse = new RButton { Text = "Open program…", AutoSize = true, Secondary = true };
+        tools.Controls.Add(browse);
+        browse.Click += (_, _) =>
+        {
+            EndCapture();
+            using var picker = new OpenFileDialog { Filter = "Programs (*.exe)|*.exe", CheckFileExists = true, Title = "Select program to open" };
+            if (picker.ShowDialog(this) != DialogResult.OK) return;
+            _executablePath = picker.FileName;
+            _keys.Clear();
+            _mouse = CombinationMouseButton.None;
+            if (_name.Text == "Combination") _name.Text = Path.GetFileNameWithoutExtension(picker.FileName);
+            UpdatePreview();
+        };
 
         var actions = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 48, FlowDirection = FlowDirection.RightToLeft };
-        var ok = new Button { Text = DialogText.Get("Save", "Save"), DialogResult = DialogResult.OK, Width = 100 };
-        var cancel = new Button { Text = DialogText.Get("Cancel", "Cancel"), DialogResult = DialogResult.Cancel, Width = 100 };
+        var ok = new RButton { Text = DialogText.Get("Save", "Save"), DialogResult = DialogResult.OK, Width = 100 };
+        var cancel = new RButton { Text = DialogText.Get("Cancel", "Cancel"), DialogResult = DialogResult.Cancel, Width = 100, Secondary = true };
         actions.Controls.Add(ok);
         actions.Controls.Add(cancel);
 
@@ -103,17 +124,22 @@ internal sealed class CombinationEditorDialog : Form
         CancelButton = cancel;
 
         _record.Click += (_, _) => BeginCapture();
-        _clear.Click += (_, _) => { _keys.Clear(); _mouse = CombinationMouseButton.None; UpdatePreview(); };
+        _clear.Click += (_, _) => { _keys.Clear(); _mouse = CombinationMouseButton.None; _executablePath = null; UpdatePreview(); };
         _test.Click += (_, _) => InputCombinationPlayer.Play(Current());
         FormClosing += (_, _) => EndCapture();
         UpdatePreview();
+        TouchUi.PrepareDialog(this);
+        Width = Math.Max(Width, TouchUi.ScaleDip(560, DeviceDpi));
+        Height = Math.Max(Height, TouchUi.TargetSize(this) * 4 + 100);
+        MinimumSize = Size;
     }
 
-    private InputCombination Current() => new() { Name = CombinationName, Keys = [.. _keys], MouseButton = _mouse };
+    private InputCombination Current() => new() { Name = CombinationName, Keys = [.. _keys], MouseButton = _mouse, ExecutablePath = _executablePath };
 
     private void BeginCapture()
     {
         EndCapture();
+        _executablePath = null;
         _keys.Clear();
         _downKeys.Clear();
         _mouse = CombinationMouseButton.None;
@@ -279,13 +305,13 @@ internal sealed class CombinationEditorDialog : Form
     }
 }
 
-internal sealed class CombinationLibraryDialog : Form
+internal sealed class CombinationLibraryDialog : RForm
 {
-    private readonly ListBox _list = new() { Dock = DockStyle.Fill, DisplayMember = nameof(InputCombination.Name) };
+    private readonly TouchListBox _list = new() { Dock = DockStyle.Fill, DisplayMember = nameof(InputCombination.Name) };
 
     public CombinationLibraryDialog()
     {
-        Text = DialogText.Get("CustomCombinations", "Custom Combinations");
+        Text = "Actions and programs";
         Width = 700;
         Height = 460;
         ShowInTaskbar = false;
@@ -298,17 +324,21 @@ internal sealed class CombinationLibraryDialog : Form
         Button rename = MakeButton(DialogText.Get("Rename", "Rename"), RenameCombination);
         Button test = MakeButton(DialogText.Get("Test", "Test"), TestCombination);
         Button delete = MakeButton(DialogText.Get("Delete", "Delete"), DeleteCombination);
-        var close = new Button { Text = DialogText.Get("Close", "Close"), Width = 90, DialogResult = DialogResult.OK };
+        var close = new RButton { Text = DialogText.Get("Close", "Close"), Width = 90, DialogResult = DialogResult.OK, Secondary = true };
         buttons.Controls.AddRange([add, edit, rename, test, delete, close]);
         Controls.Add(_list);
         Controls.Add(buttons);
         AcceptButton = close;
+        TouchUi.PrepareDialog(this);
+        Width = Math.Max(Width, TouchUi.ScaleDip(620, DeviceDpi));
+        Height = Math.Max(Height, TouchUi.TargetSize(this) * 4 + 140);
+        MinimumSize = new Size(560, Height);
         RefreshList();
     }
 
     private static Button MakeButton(string text, Action action)
     {
-        var button = new Button { Text = text, Width = 95 };
+        var button = new RButton { Text = text, Width = 95, Secondary = true };
         button.Click += (_, _) => action();
         return button;
     }
@@ -326,13 +356,13 @@ internal sealed class CombinationLibraryDialog : Form
     {
         using var editor = new CombinationEditorDialog();
         if (editor.ShowDialog(this) != DialogResult.OK || editor.CombinationName.Length == 0) return;
-        if (editor.Keys.Count == 0 && editor.MouseButton == CombinationMouseButton.None)
+        if (editor.Keys.Count == 0 && editor.MouseButton == CombinationMouseButton.None && string.IsNullOrWhiteSpace(editor.ExecutablePath))
         {
             MessageBox.Show(this, DialogText.Get("CombinationEmpty", "Record at least one key or mouse button."), Text,
                 MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return;
         }
-        string id = ControllerPresetManager.AddCombination(editor.CombinationName, editor.Keys, editor.MouseButton);
+        string id = ControllerPresetManager.AddCombination(editor.CombinationName, editor.Keys, editor.MouseButton, editor.ExecutablePath);
         RefreshList(id);
     }
 
@@ -342,13 +372,13 @@ internal sealed class CombinationLibraryDialog : Form
         if (selected is null) return;
         using var editor = new CombinationEditorDialog(selected);
         if (editor.ShowDialog(this) != DialogResult.OK) return;
-        if (editor.Keys.Count == 0 && editor.MouseButton == CombinationMouseButton.None)
+        if (editor.Keys.Count == 0 && editor.MouseButton == CombinationMouseButton.None && string.IsNullOrWhiteSpace(editor.ExecutablePath))
         {
             MessageBox.Show(this, DialogText.Get("CombinationEmpty", "Record at least one key or mouse button."), Text,
                 MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return;
         }
-        ControllerPresetManager.UpdateCombination(selected.Id, editor.CombinationName, editor.Keys, editor.MouseButton);
+        ControllerPresetManager.UpdateCombination(selected.Id, editor.CombinationName, editor.Keys, editor.MouseButton, editor.ExecutablePath);
         RefreshList(selected.Id);
     }
 
@@ -358,7 +388,7 @@ internal sealed class CombinationLibraryDialog : Form
         if (selected is null) return;
         using var prompt = new TextPromptDialog(DialogText.Get("Rename", "Rename"), DialogText.Get("Name", "Name"), selected.Name);
         if (prompt.ShowDialog(this) != DialogResult.OK) return;
-        ControllerPresetManager.UpdateCombination(selected.Id, prompt.Value, selected.Keys, selected.MouseButton);
+        ControllerPresetManager.UpdateCombination(selected.Id, prompt.Value, selected.Keys, selected.MouseButton, selected.ExecutablePath);
         RefreshList(selected.Id);
     }
 
@@ -378,12 +408,12 @@ internal sealed class CombinationLibraryDialog : Form
     }
 }
 
-internal sealed class PresetRulesDialog : Form
+internal sealed class PresetRulesDialog : RForm
 {
     private readonly string _presetId;
     private readonly List<ExecutableRule> _rules;
-    private readonly ListView _list = new() { Dock = DockStyle.Fill, View = View.Details, FullRowSelect = true };
-    private readonly ComboBox _mode = new() { Width = 130, DropDownStyle = ComboBoxStyle.DropDownList };
+    private readonly TouchListView _list = new() { Dock = DockStyle.Fill, View = View.Details };
+    private readonly RComboBox _mode = new() { Width = 160, DropDownStyle = ComboBoxStyle.DropDownList };
     private bool _updating;
 
     public PresetRulesDialog(string presetId)
@@ -413,8 +443,8 @@ internal sealed class PresetRulesDialog : Form
         tools.Controls.Add(_mode);
 
         var actions = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 50, FlowDirection = FlowDirection.RightToLeft };
-        var save = new Button { Text = DialogText.Get("Save", "Save"), Width = 100, DialogResult = DialogResult.OK };
-        var cancel = new Button { Text = DialogText.Get("Cancel", "Cancel"), Width = 100, DialogResult = DialogResult.Cancel };
+        var save = new RButton { Text = DialogText.Get("Save", "Save"), Width = 100, DialogResult = DialogResult.OK };
+        var cancel = new RButton { Text = DialogText.Get("Cancel", "Cancel"), Width = 100, DialogResult = DialogResult.Cancel, Secondary = true };
         actions.Controls.Add(save);
         actions.Controls.Add(cancel);
         Controls.Add(_list);
@@ -423,12 +453,26 @@ internal sealed class PresetRulesDialog : Form
         AcceptButton = save;
         CancelButton = cancel;
         FormClosing += (_, e) => { if (DialogResult == DialogResult.OK) ControllerPresetManager.SetRules(_presetId, _rules); };
+        TouchUi.PrepareDialog(this);
+        Width = Math.Max(Width, TouchUi.ScaleDip(700, DeviceDpi));
+        Height = Math.Max(Height, TouchUi.TargetSize(this) * 4 + 180);
+        MinimumSize = new Size(680, Height);
+        _mode.Width = Math.Max(_mode.Width, TouchUi.TargetSize(this) * 3);
+        Resize += (_, _) => ResizeColumns();
+        ResizeColumns();
         RefreshList();
+    }
+
+    private void ResizeColumns()
+    {
+        int detectionWidth = TouchUi.ScaleDip(130, DeviceDpi);
+        _list.Columns[1].Width = detectionWidth;
+        _list.Columns[0].Width = Math.Max(TouchUi.ScaleDip(220, DeviceDpi), _list.ClientSize.Width - detectionWidth - 4);
     }
 
     private static Button MakeButton(string text, Action action, int width)
     {
-        var button = new Button { Text = text, Width = width };
+        var button = new RButton { Text = text, Width = width, Secondary = true };
         button.Click += (_, _) => action();
         return button;
     }
@@ -520,9 +564,9 @@ internal sealed class PresetRulesDialog : Form
     }
 }
 
-internal sealed class RunningProcessDialog : Form
+internal sealed class RunningProcessDialog : RForm
 {
-    private readonly ListBox _list = new() { Dock = DockStyle.Fill };
+    private readonly TouchListBox _list = new() { Dock = DockStyle.Fill };
     public ProcessChoice? Selected => _list.SelectedItem is ProcessChoice item ? item : null;
 
     public RunningProcessDialog(IEnumerable<ProcessChoice> choices)
@@ -535,8 +579,8 @@ internal sealed class RunningProcessDialog : Form
         Padding = new Padding(12);
         foreach (ProcessChoice choice in choices) _list.Items.Add(choice);
         var actions = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 50, FlowDirection = FlowDirection.RightToLeft };
-        var ok = new Button { Text = DialogText.Get("Add", "Add"), Width = 90, DialogResult = DialogResult.OK };
-        var cancel = new Button { Text = DialogText.Get("Cancel", "Cancel"), Width = 90, DialogResult = DialogResult.Cancel };
+        var ok = new RButton { Text = DialogText.Get("Add", "Add"), Width = 90, DialogResult = DialogResult.OK };
+        var cancel = new RButton { Text = DialogText.Get("Cancel", "Cancel"), Width = 90, DialogResult = DialogResult.Cancel, Secondary = true };
         actions.Controls.Add(ok);
         actions.Controls.Add(cancel);
         Controls.Add(_list);
@@ -544,5 +588,9 @@ internal sealed class RunningProcessDialog : Form
         AcceptButton = ok;
         CancelButton = cancel;
         _list.DoubleClick += (_, _) => { if (Selected is not null) DialogResult = DialogResult.OK; };
+        TouchUi.PrepareDialog(this);
+        Width = Math.Max(Width, TouchUi.ScaleDip(640, DeviceDpi));
+        Height = Math.Max(Height, TouchUi.TargetSize(this) * 4 + 140);
+        MinimumSize = new Size(600, Height);
     }
 }

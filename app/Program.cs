@@ -479,6 +479,7 @@ namespace GHelper
             trayIconController?.Dispose();
 
             ControllerPresetManager.Stop();
+            StickDirectionActions.Stop();
             CombinationCarrierManager.Stop();
             PeripheralsProvider.UnregisterForDeviceEvents();
             clamshellControl.UnregisterDisplayEvents();
